@@ -1,7 +1,9 @@
 type binding = 
   | LetB of string * param list * typ option * expr (* let $id [<param>]* [: <type>] = <expr> *)
   | LetRecB of string * param list * typ option * expr (* let rec $id [<param>]* [: <type>] = <expr> *)
-  | TypeB of string * (string * typ option) list (* type $id = ['|' $id [of <type>]]+ *)
+  | TypeB of string * typ_binding list (* type $id = ['|' $id [of <type>]]+ *)
+
+and typ_binding = string * typ option
 
 and expr =
   (* Binary operations *)
@@ -10,19 +12,19 @@ and expr =
   | Mul of expr * expr
   | Div of expr * expr
   | Modulo of expr * expr
-  | Lt of expr * expr
+  | LessThan of expr * expr
   | Equal of expr * expr
-  | And of expr * expr
-  | Or of expr * expr
-  | Concat of expr * expr
+  | LogicAnd of expr * expr
+  | LogicOr of expr * expr
+  | StrConcat of expr * expr
   (* Unary operations *)
-  | Negate of expr
+  | LogicNegate of expr
   | IntNegate of expr
   (* Base expressions *)
   | CInt of int
   | CString of string
   | CBool of bool
-  | Id of string
+  | Var of string
   (* Complex expressions *)
   | MatchExp of expr * matchbranch list (* match <expr> with ['|' <match_branch>]+ *)
   | LetExp of string * param list * typ option * expr * expr (* let $id [<param>]* [: <type>] = <expr> in <expr> *)
@@ -30,7 +32,8 @@ and expr =
   | If of expr * expr * expr (* if <expr> then <expr> else <expr> *)
   | Fun of param list * typ option * expr (* fun [<param>]+ [: <type>] => <expr> , type is return type*)
   | App of expr * expr (* <expr> <expr> *)
-  | EmptyExp
+  | Tuple of expr list (* ( <expr> [, <expr>]+ ) *)
+  | Unit
 
 and matchbranch = 
   | MatchBr of string * pattern_vars option  * expr (* <match_branch> ::= $id [<pattern_vars>] => <expr> *)
