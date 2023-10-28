@@ -30,7 +30,7 @@ and expr =
   | LetExp of string * param list * typ option * expr * expr (* let $id [<param>]* [: <type>] = <expr> in <expr> *)
   | LetRecExp of string * param list * typ option * expr * expr (* let rec $id [<param>]* [: <type>] = <expr> in <expr> *)
   | If of expr * expr * expr (* if <expr> then <expr> else <expr> *)
-  | Fun of param list * typ option * expr (* fun [<param>]+ [: <type>] => <expr> , type is return type*)
+  | Function of param list * typ option * expr (* fun [<param>]+ [: <type>] => <expr> , type is return type*)
   | App of expr * expr (* <expr> <expr> *)
   | Tuple of expr list (* ( <expr> [, <expr>]+ ) *)
   | Unit
@@ -50,7 +50,7 @@ and typ =
   | BoolTy 
   | StringTy
   | UnitTy 
-  | FunTy of typ * typ 
+  | FuncTy of typ * typ 
   | TupleTy of typ * typ
   | CustomTy of string
 

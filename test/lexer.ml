@@ -151,7 +151,7 @@ let parse_tests = "test suite for parser" >::: [
     "function expression, no type" >::
     (fun _ -> assert_equal
         ([LetB("res", [], None, 
-            Fun([{ name="x"; p_type=None }; { name="y"; p_type=None }], Some IntTy, 
+            Function([{ name="x"; p_type=None }; { name="y"; p_type=None }], Some IntTy, 
             Add(Var "x", Mul(CInt 2, Var "y"))))
         ])
         (parse  "let res = fun x y : int => x + 2y;;"));
@@ -159,7 +159,7 @@ let parse_tests = "test suite for parser" >::: [
     "function expression, with type" >::
     (fun _ -> assert_equal
         ([LetB("res", [], None, 
-            Fun([{ name="x"; p_type=None}; { name="y"; p_type=None}], Some IntTy, 
+            Function([{ name="x"; p_type=None}; { name="y"; p_type=None}], Some IntTy, 
             Add(Var "x", Mul(CInt 2, Var "y"))))  
         ])
         (parse  "let res = fun (x:int) (y:int) : int => x + 2y;;"));
@@ -315,7 +315,7 @@ let interp_tests = "test suite for interpretor" >::: [
   "match expression" >::
   (fun _ -> assert_equal
       ([
-        TypeB("pairing", ["Pair", TupleTy(IntTy, IntTy)]),
+        TypeB("pairing", ["Pair", Some (TupleTy(IntTy, IntTy))]),
         LetB("p", [], Some (CustomTy "pairing"), App( Var "Pair", Tup ([CInt 1, CInt 2]))),
         LetB("result", [], Some IntTy, CInt 3)
       ])
@@ -327,17 +327,17 @@ let interp_tests = "test suite for interpretor" >::: [
   "function expression, no type" >::
   (fun _ -> assert_equal
       (
-      Fun([{ name="x"; p_type=Some IntTy}, { name="y"; p_type=Some IntTy}], Some IntTy, 
+      Function([{ name="x"; p_type=Some IntTy}; { name="y"; p_type=Some IntTy}], Some IntTy, 
       Add(Var "x", Mul(CInt 2, Var "y")))  
       )
-      (parse  "fun x y : int => x + 2y"));
+      (interpret  "fun x y : int => x + 2y"));
 
   "function expression, with type" >::
   (fun _ -> assert_equal
       (
-      Fun([{ name="x"; p_type=Some IntTy}, { name="y"; p_type=Some IntTy}], Some IntTy, 
+      Function([{ name="x"; p_type=Some IntTy}; { name="y"; p_type=Some IntTy}], Some IntTy, 
       Add(Var "x", Mul(CInt 2, Var "y")))  
       )
-      (parse  "fun (x:int) (y:int) : int => x + 2y"));
+      (interpret  "fun (x:int) (y:int) : int => x + 2y"));
     
   ]
