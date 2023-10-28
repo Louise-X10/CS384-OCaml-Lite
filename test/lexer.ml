@@ -29,31 +29,45 @@ let lex_tests = "test suite for tokenize" >::: [
   ]
 
 let parse_tests = "test suite for parser" >::: [
+    "unit" >::
+    (fun _ -> assert_equal
+        (LetB("x", [], None, Unit)
+        )
+        (parse "let x = ();;"));
+
+    "tuple" >::
+    (fun _ -> assert_equal
+        (LetB("x", [], None, Tuple([CInt 1;CInt 2;CInt 3]))
+        )
+        (parse "let x = (1, 2, 3);;"));
+
+
     "arithmetic computations" >::
     (fun _ -> assert_equal
-        (Mod(
-          Sub(
-            Add(
-              Div(CInt 1, CInt 2), 
-              Mul(CInt 3, CInt 4)),
-            CInt 5),
-          CInt 6)
+        (LetB("x", [], None, 
+            Modulo(
+                Sub(
+                    Add(
+                    Div(CInt 1, CInt 2), 
+                    Mul(CInt 3, CInt 4)),
+                CInt 5),
+            CInt 6))
         )
-        (parse " (1 / 2 + 3 * 4 - 4 ) mod 6"));
+        (parse "let x = (1 / 2 + 3 * 4 - 4 ) mod 6;;"));
 
     "comparisons" >::
     (fun _ -> assert_equal
-        (Equal(Lt(Add(CInt 2, CInt 3), CInt 7), CBool true))
+        (Equal(LessThan(Add(CInt 2, CInt 3), CInt 7), CBool true))
         (parse " 2 + 3 < 7 = true"));
 
     "logic expressions" >::
     (fun _ -> assert_equal
-        (Or(And(Negate(CBool true), CBool false), CBool true))
+        (LogicOr(LogicAnd(LogicNegate(CBool true), CBool false), CBool true))
         (parse "not true && false || true"));
 
     "string concat" >::
     (fun _ -> assert_equal
-        (Concat(CString "hello", CString "world"))
+        (StrConcat(CString "hello", CString "world"))
         (parse
           " \"hello\" ^ \"world\" "));
 
@@ -64,24 +78,24 @@ let parse_tests = "test suite for parser" >::: [
 
     "if expression" >::
       (fun _ -> assert_equal
-          (If(Lt(CInt 2, CInt 3), CBool true, CBool false))
+          (If(LessThan(CInt 2, CInt 3), CBool true, CBool false))
           (parse  "if 2 < 3 then true else false"));
 
     "let expression, with type" >::
       (fun _ -> assert_equal
-          (LetExp("x", [], Some IntTy, Add(Id "x", CInt 1)))
+          (LetExp("x", [], Some IntTy, Add(Var "x", CInt 1)))
           (parse  "let x : int = 0 in x + 1"));
 
     "let expression, no type" >::
     (fun _ -> assert_equal
-        (LetExp("x", [], None, Add(Id "x", CInt 1)))
+        (LetExp("x", [], None, Add(Var "x", CInt 1)))
         (parse  "let x = 0 in x + 1"));
 
     "let binding, with type" >::
     (fun _ -> assert_equal
         (
           LetB("f", [{ name="x"; p_type=Some IntTy}], Some BoolTy, 
-          If(Lt(Id "x", CInt 0), CBool true, CBool false))
+          If(LessThan(Var "x", CInt 0), CBool true, CBool false))
         )
         (parse
             "let f (x : int) : bool = if x < 0 then true else false;;"));
@@ -90,8 +104,8 @@ let parse_tests = "test suite for parser" >::: [
     (fun _ -> assert_equal
         ([
           LetB("f", [{ name="x"; p_type=Some IntTy}], Some BoolTy, 
-          If(Lt(Id "x", CInt 0), CBool true, CBool false)),
-          LetB("result", [], None, App (Id "f", CInt 1))
+          If(LessThan(Var "x", CInt 0), CBool true, CBool false)),
+          LetB("result", [], None, App (Var "f", CInt 1))
         ])
         (interpret
             "let f (x : int) : bool = if x < 0 then true else false;;
@@ -100,16 +114,16 @@ let parse_tests = "test suite for parser" >::: [
     "function application from helper let function, no type" >::
     (fun _ -> assert_equal
         (
-        LetExp("f", [{ name="x"; p_type=Some IntTy}], Some BoolTy,If(Lt(Id "x", CInt 0), CBool true, CBool false)),
-        App (Id "f", CInt 1)
+        LetExp("f", [{ name="x"; p_type=Some IntTy}], Some BoolTy,If(LessThan(Var "x", CInt 0), CBool true, CBool false)),
+        App (Var "f", CInt 1)
         )
         (interpret
             "let f (x : int) : bool = if x < 0 then true else false in f 1"));
             
     "match expression" >::
     (fun _ -> assert_equal
-        (MatchExp(Id "p", [
-          MatchBr(Id "Pair", Some ["x", "y"], Add (Id "x", Id "y"))
+        (MatchExp(Var "p", [
+          MatchBr(Var "Pair", Some ["x", "y"], Add (Var "x", Var "y"))
         ]))
         (parse  "match p with | Pair (x, y) => x + y"));
 
@@ -117,7 +131,7 @@ let parse_tests = "test suite for parser" >::: [
     (fun _ -> assert_equal
         (
         Fun([{ name="x"; p_type=None}, { name="y"; p_type=None}], Some IntTy, 
-        Add(Id "x", Mul(CInt 2, Id "y")))  
+        Add(Var "x", Mul(CInt 2, Var "y")))  
         )
         (parse  "fun x y : int => x + 2y"));
 
@@ -125,7 +139,7 @@ let parse_tests = "test suite for parser" >::: [
     (fun _ -> assert_equal
         (
         Fun([{ name="x"; p_type=None}, { name="y"; p_type=None}], Some IntTy, 
-        Add(Id "x", Mul(CInt 2, Id "y")))  
+        Add(Var "x", Mul(CInt 2, Var "y")))  
         )
         (parse  "fun (x:int) (y:int) : int => x + 2y"));
 
@@ -244,7 +258,7 @@ let interp_tests = "test suite for interpretor" >::: [
   (fun _ -> assert_equal
       (
         LetB("f", [{ name="x"; p_type=None}], Some BoolTy, 
-        If(Lt(Id "x", CInt 0), CBool true, CBool false))
+        If(LessThan(Var "x", CInt 0), CBool true, CBool false))
       )
       (interpret
           "let f (x : int) : bool = if x < 0 then true else false;;"));
@@ -253,7 +267,7 @@ let interp_tests = "test suite for interpretor" >::: [
   (fun _ -> assert_equal
       ([
         LetB("f", [{ name="x"; p_type=None}], Some BoolTy, 
-        If(Lt(Id "x", CInt 0), CBool true, CBool false)),
+        If(LessThan(Var "x", CInt 0), CBool true, CBool false)),
         LetB("result", [], Some BoolTy, CBool true)
       ])
       (interpret
@@ -270,7 +284,7 @@ let interp_tests = "test suite for interpretor" >::: [
   (fun _ -> assert_equal
       ([
         TypeB("pairing", ["Pair", TupleTy(IntTy, IntTy)]),
-        LetB("p", [], Some (CustomTy "pairing"), App( App(Id "Pair", CInt 1), CInt 2)),
+        LetB("p", [], Some (CustomTy "pairing"), App( Var "Pair", Tup ([CInt 1, CInt 2]))),
         LetB("result", [], Some IntTy, CInt 3)
       ])
       (interpret  "
@@ -282,7 +296,7 @@ let interp_tests = "test suite for interpretor" >::: [
   (fun _ -> assert_equal
       (
       Fun([{ name="x"; p_type=Some IntTy}, { name="y"; p_type=Some IntTy}], Some IntTy, 
-      Add(Id "x", Mul(CInt 2, Id "y")))  
+      Add(Var "x", Mul(CInt 2, Var "y")))  
       )
       (parse  "fun x y : int => x + 2y"));
 
@@ -290,7 +304,7 @@ let interp_tests = "test suite for interpretor" >::: [
   (fun _ -> assert_equal
       (
       Fun([{ name="x"; p_type=Some IntTy}, { name="y"; p_type=Some IntTy}], Some IntTy, 
-      Add(Id "x", Mul(CInt 2, Id "y")))  
+      Add(Var "x", Mul(CInt 2, Var "y")))  
       )
       (parse  "fun (x:int) (y:int) : int => x + 2y"));
     
