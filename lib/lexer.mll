@@ -178,4 +178,8 @@ let parse_lexbuf (b : Lexing.lexbuf) : Ast.program =
 
 let parse s = parse_lexbuf (Lexing.from_string s)
 
+let parse_expr_lexbuf (b : Lexing.lexbuf) : Ast.expr =
+  start_expr tok b
+
+let parse_expr s = parse_expr_lexbuf (Lexing.from_string s)
 }

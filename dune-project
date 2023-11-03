@@ -12,3 +12,5 @@
  (name ocaml_lite)
  (synopsis "OCaml-lite language.")
  (depends ocaml dune))
+
+(using menhir 2.1)
