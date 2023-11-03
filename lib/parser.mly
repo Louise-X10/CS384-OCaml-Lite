@@ -83,7 +83,9 @@ start_expr:
 
 <binding> ::= let $id [<param>]* [: <type>] = <expr>
             | let rec $id [<param>]* [: <type>] = <expr>
-            | type $id = ['|' $id [of <type>]]+
+            | type $id = <typ_bindings>
+
+<typ_bindings> ::= ['|' $id [of <type>]]+
 
 <param> ::= $id
           | ( $id : <type> )
@@ -192,28 +194,13 @@ base:
 /* 
 <match_expr> ::=  match <expr> with <match_branches>
 <match_branches> ::= ['|' <match_branch>]+
-
-In other words, 
-<match_branches> ::= '|' id => <expr> 
-                  |  '|' id => <expr>  <match_branches>
-
-Disambiguate grammar so match is right associative: 
-  match .. | x=>  match .. | y => e2 | z => e3 is equivalent to
-  match .. | x=> (match .. | y => e2 | z => e3), not equivalent to 
-  match .. | x=> (match .. | y => e2) | z => e3
-
-i.e. If encounter another 'match' keyword, remaining pipes belong to inner match expr
-Only if encounter non-match exprs, then evaluate remaining pipes as current match branch
- */
+*/
 
 match_branches: 
 | Pipe; x = Id; vs = pattern_vars_opt; DoubleArrow; e = expr;                        { [MatchBr(x, vs, e)] }
 | Pipe; x = Id; vs = pattern_vars_opt; DoubleArrow; e = expr; bs = match_branches;   { MatchBr(x, vs, e):: bs }
 
 /* 
-<pattern_vars> ::= $id
-                 | ( $id [, $id ]+ )
-
 <pattern_vars_opt> ::= $id | ( <list_of_ids> ) | e
 <list_of_ids> ::= $id | <list_of_ids>, $id
  */
@@ -227,34 +214,14 @@ list_of_ids:
   | x = Id; Comma; xs = list_of_ids   { x:: xs}
 
 /* 
-<type> ::= <type> -> <type>
-         | ( <type> )
-         # | <type> * <type>
-         | <typ_tuple>
-         | int
-         | bool
-         | string
-         | unit
-         | $id
-
-Disambiguate so int * int * int = [IntTy; IntTy; IntTy]
-(int * int) * int = [ [IntTy; IntTy] ; IntTy]
-
-i.e. disambiguate so <typ_pair> cannot call <typ_tuple>
-i.e. <typ_tuple> can only resolve to unique list of basic types
-
 <typ> ::=
   | <type> -> <type>
   | <typ_tuple>
-  | <typ_basep>
+  | <typ_base>
 
 <typ_tuple> ::= 
   | <typ_tuple> * <typ_base>
-  | <typ_pair>
-
-<typ_tuple> ::= 
-  | <typ_tuple> * <typ_base>
-  | <typ_base> * <typ_base> # or | <type_pair>, and <typ_pair> :: <typ_base> * <typ_base>
+  | <typ_base> * <typ_base>  
 
 <typ_base> ::= 
          | ( <type> )
@@ -263,7 +230,6 @@ i.e. <typ_tuple> can only resolve to unique list of basic types
          | string
          | unit
          | $id
-
 */
 
 typ: 
@@ -282,23 +248,3 @@ typ_base:
 typ_tuple:
   | t1 = typ_base; Times; t2 = typ_base   { [t2; t1]}
   | ts = typ_tuple; Times; t = typ_base   { t :: ts}
-
-/* 
-program:
-  | t = term;                 { t }
-  | b = binding; p = program; { let (n, v) = b in EApp (ELambda (n, p), v) }
-
-binding:
-  | id = Var; Equal; t = term; Semicolon; { (id, t) }
-
-term:
-  | Lambda; id = Var; Dot; t = term; { ELambda (id, t) }
-  | a = application;                 { a }
-
-application:
-  | a = application; b = base; { EApp (a, b) }
-  | b = base;                  { b }
-
-base:
-  | id = Var;                 { EVar id }
-  | LParen; t = term; RParen; { t } */
