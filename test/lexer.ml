@@ -101,8 +101,8 @@ let parse_expr_tests = "test suite for parser (expr helper)" >::: [
 
     "nested match expression" >::
     (fun _ -> assert_equal
-        (parse_expr  "match p with | Pair (x, y) => (match x with | 1 => 1 | 0 => -1)")
-        (parse_expr  "match p with | Pair (x, y) =>  match x with | 1 => 1 | 0 => -1 "));
+        (parse_expr  "match p with | Pair (x, y) => (match x with | Odd => 1 | Even => ~1)")
+        (parse_expr  "match p with | Pair (x, y) =>  match x with | Odd => 1 | Even => ~1 "));
 
     "function expression, no type" >::
     (fun _ -> assert_equal
