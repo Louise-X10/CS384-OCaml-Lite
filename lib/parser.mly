@@ -59,9 +59,7 @@
 %type <program> program
 %type <binding> binding
 %type <typ_binding> typ_binding
-%type <typ_binding list> typ_bindings
 %type <param> param
-%type <param list> params require_params
 %type <expr> expr application base
 %type <expr list> expr_tuple
 %type <typ> typ typ_base 
@@ -95,25 +93,13 @@ program:
   | bs = program; b = binding;    { b :: bs }
 
 binding:
-  | Let; r = boption(Rec); x = Id; ps = params; Colon; t = typ;Eq; e = expr; DoubleSemicolon;       { LetB(x, r, ps, Some t, e)}
-  | Let; r = boption(Rec); x = Id; ps = params; Eq; e = expr; DoubleSemicolon;                      { LetB(x, r, ps, None, e )}
-  | Type; x = Id; Eq; ts = typ_bindings; DoubleSemicolon;                         { TypeB(x, List.rev ts)}
-
-typ_bindings:
-  | tb = typ_binding                      { [tb] }
-  | tbs = typ_bindings; tb = typ_binding  { tb :: tbs }
+  | Let; r = boption(Rec); x = Id; ps = list(param); Colon; t = typ;Eq; e = expr; DoubleSemicolon;   { LetB(x, r, ps, Some t, e)}
+  | Let; r = boption(Rec); x = Id; ps = list(param); Eq; e = expr; DoubleSemicolon;                  { LetB(x, r, ps, None, e )}
+  | Type; x = Id; Eq; ts = nonempty_list(typ_binding); DoubleSemicolon;                         { TypeB(x, List.rev ts)}
 
 typ_binding:
   | Pipe; x = Id               { (x, None)}
   | Pipe; x = Id; Of; t = typ  { (x, Some t)}
-
-params:
-  |                         { [] }
-  | ps = params; p = param  { p:: ps } 
-
-require_params:
-  | p = param               { [p] }
-  | ps = require_params; p = param  { p:: ps } 
 
 param:
   | LParen; x = Id; Colon; t = typ; RParen; { { name = x; p_type = Some t } }
@@ -148,11 +134,11 @@ param:
  */
 
 expr:
-  | Let; r = boption(Rec); x = Id; ps = params; Colon; t = typ; Eq; e1 = expr; In; e2 = expr; { LetExp(x, r, List.rev ps, Some t, e1, e2) }
-  | Let; r = boption(Rec); x = Id; ps = params; Eq; e1 = expr; In; e2 = expr;              { LetExp(x, r, List.rev ps, None, e1, e2) }
+  | Let; r = boption(Rec); x = Id; ps = list(param); Colon; t = typ; Eq; e1 = expr; In; e2 = expr; { LetExp(x, r, List.rev ps, Some t, e1, e2) }
+  | Let; r = boption(Rec); x = Id; ps = list(param); Eq; e1 = expr; In; e2 = expr;              { LetExp(x, r, List.rev ps, None, e1, e2) }
   | If; e1 = expr; Then; e2 = expr; Else; e3 = expr;                          { IfExp(e1,e2,e3) }
-  | Fun; ps = require_params; Colon; t = typ; DoubleArrow; e = expr;          { Function(List.rev ps, Some t, e) }
-  | Fun; ps = require_params; DoubleArrow; e = expr;                          { Function(List.rev ps, None, e) }
+  | Fun; ps = nonempty_list(param); Colon; t = typ; DoubleArrow; e = expr;          { Function(List.rev ps, Some t, e) }
+  | Fun; ps = nonempty_list(param); DoubleArrow; e = expr;                          { Function(List.rev ps, None, e) }
   | Match; e = expr; With; bs = match_branches;                               { MatchExp(e, bs) } 
   | e1 = expr; Plus; e2 = expr;                                               { Add(e1,e2) }
   | e1 = expr; Minus; e2 = expr;                                              { Sub(e1,e2) }
