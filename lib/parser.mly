@@ -56,24 +56,19 @@
 %start <program> start
 %start <expr> start_expr
 
-%type <program> program
 %type <binding> binding
 %type <typ_binding> typ_binding
-%type <typ_binding list> typ_bindings
 %type <param> param
-%type <param list> params require_params
 %type <expr> expr application base
-%type <expr list> expr_tuple
 %type <typ> typ typ_base 
 %type <typ list> typ_tuple
 %type <matchbranch list> match_branches
-%type <pattern_vars option> pattern_vars_opt 
-%type <string list> list_of_ids
+%type <pattern_vars> pattern_vars
 
 %%
 
 start:
-  | p = program; EOF; { List.rev p } 
+  | bs = binding+; EOF; { bs } 
 
 start_expr:
   | e = expr; EOF; { e } 
@@ -91,32 +86,15 @@ start_expr:
           | ( $id : <type> )
  */
 
-program: 
-  | b = binding;                  { [b] }
-  | bs = program; b = binding;    { b :: bs }
-
 binding:
-  | Let; x = Id; ps = params; Colon; t = typ;Eq; e = expr; DoubleSemicolon;       { LetB(x, ps, Some t, e)}
-  | Let; x = Id; ps = params; Eq; e = expr; DoubleSemicolon;                      { LetB(x, ps, None, e )}
-  | Let; Rec; x = Id; ps = params; Colon; t = typ; Eq; e = expr; DoubleSemicolon; { LetRecB(x, ps, Some t, e)}
-  | Let; Rec; x = Id; ps = params; Eq; e = expr; DoubleSemicolon;                 { LetRecB(x, ps, None, e )}
-  | Type; x = Id; Eq; ts = typ_bindings; DoubleSemicolon;                         { TypeB(x, List.rev ts)}
-
-typ_bindings:
-  | tb = typ_binding                      { [tb] }
-  | tbs = typ_bindings; tb = typ_binding  { tb :: tbs }
+  | Let; r = boption(Rec); x = Id; ps = param*; Colon; t = typ;Eq; e = expr; DoubleSemicolon;   { LetB(x, r, ps, Some t, e)}
+  | Let; r = boption(Rec); x = Id; ps = param*; Eq; e = expr; DoubleSemicolon;                  { LetB(x, r, ps, None, e )}
+  | Type; x = Id; Eq; ts = typ_binding+; DoubleSemicolon;                                       { TypeB(x,  ts)}
 
 typ_binding:
   | Pipe; x = Id               { (x, None)}
   | Pipe; x = Id; Of; t = typ  { (x, Some t)}
 
-params:
-  |                         { [] }
-  | ps = params; p = param  { p:: ps } 
-
-require_params:
-  | p = param               { [p] }
-  | ps = require_params; p = param  { p:: ps } 
 
 param:
   | LParen; x = Id; Colon; t = typ; RParen; { { name = x; p_type = Some t } }
@@ -151,32 +129,26 @@ param:
  */
 
 expr:
-  | Let; x = Id; ps = params; Colon; t = typ; Eq; e1 = expr; In; e2 = expr;   { LetExp(x, List.rev ps, Some t, e1, e2) }
-  | Let; x = Id; ps = params; Eq ; e1 = expr; In; e2 = expr;                  { LetExp(x, List.rev ps, None, e1, e2) }
-  | Let; Rec; x = Id; ps = params; Colon; t = typ; Eq; e1 = expr; In; e2 = expr; { LetRecExp(x, List.rev ps, Some t, e1, e2) }
-  | Let; Rec; x = Id; ps = params; Eq; e1 = expr; In; e2 = expr;              { LetRecExp(x, List.rev ps, None, e1, e2) }
-  | If; e1 = expr; Then; e2 = expr; Else; e3 = expr;                          { IfExp(e1,e2,e3) }
-  | Fun; ps = require_params; Colon; t = typ; DoubleArrow; e = expr;          { Function(List.rev ps, Some t, e) }
-  | Fun; ps = require_params; DoubleArrow; e = expr;                          { Function(List.rev ps, None, e) }
-  | Match; e = expr; With; bs = match_branches;                               { MatchExp(e, bs) } 
-  | e1 = expr; Plus; e2 = expr;                                               { Add(e1,e2) }
-  | e1 = expr; Minus; e2 = expr;                                              { Sub(e1,e2) }
-  | e1 = expr; Times; e2 = expr;                                              { Mul(e1,e2) }
-  | e1 = expr; Divide; e2 = expr;                                             { Div(e1,e2) }
-  | e1 = expr; Mod; e2 = expr;                                                { Modulo(e1,e2) }
-  | e1 = expr; Lt; e2 = expr;                                                 { LessThan(e1,e2) }
-  | e1 = expr; Eq; e2 = expr;                                                 { Equal(e1,e2) }
-  | e1 = expr; Concat; e2 = expr;                                             { StrConcat(e1,e2) }
-  | e1 = expr; And; e2 = expr;                                                { LogicAnd(e1,e2) }
-  | e1 = expr; Or; e2 = expr;                                                 { LogicOr(e1,e2) }
-  | Not; e = expr;                                                            { LogicNegate(e) }
-  | Negate; e = expr;                                                         { IntNegate(e) } 
-  | LParen; es = expr_tuple; RParen;                                          { Tuple(List.rev es) }
-  | a = application;                                                          { a }
-
-expr_tuple: 
-  | e1 = expr; Comma; e2 = expr;               { [e2; e1] }
-  | es = expr_tuple; Comma; e = expr;          { e :: es }
+  | Let; r = boption(Rec); x = Id; ps = param*; Colon; t = typ; Eq; e1 = expr; In; e2 = expr; { LetExp(x, r, ps, Some t, e1, e2) }
+  | Let; r = boption(Rec); x = Id; ps = param*; Eq; e1 = expr; In; e2 = expr;                 { LetExp(x, r, ps, None, e1, e2) }
+  | If; e1 = expr; Then; e2 = expr; Else; e3 = expr;                                          { IfExp(e1,e2,e3) }
+  | Fun; ps = param+; Colon; t = typ; DoubleArrow; e = expr;                                  { Function(ps, Some t, e) }
+  | Fun; ps = param+; DoubleArrow; e = expr;                                                  { Function(ps, None, e) }
+  | Match; e = expr; With; bs = match_branches;                                               { MatchExp(e, bs) } 
+  | e1 = expr; Plus; e2 = expr;                                                               { Add(e1,e2) }
+  | e1 = expr; Minus; e2 = expr;                                                              { Sub(e1,e2) }
+  | e1 = expr; Times; e2 = expr;                                                              { Mul(e1,e2) }
+  | e1 = expr; Divide; e2 = expr;                                                             { Div(e1,e2) }
+  | e1 = expr; Mod; e2 = expr;                                                                { Modulo(e1,e2) }
+  | e1 = expr; Lt; e2 = expr;                                                                 { LessThan(e1,e2) }
+  | e1 = expr; Eq; e2 = expr;                                                                 { Equal(e1,e2) }
+  | e1 = expr; Concat; e2 = expr;                                                             { StrConcat(e1,e2) }
+  | e1 = expr; And; e2 = expr;                                                                { LogicAnd(e1,e2) }
+  | e1 = expr; Or; e2 = expr;                                                                 { LogicOr(e1,e2) }
+  | Not; e = expr;                                                                            { LogicNegate(e) }
+  | Negate; e = expr;                                                                         { IntNegate(e) } 
+  | LParen; e = expr; Comma; es = separated_nonempty_list(Comma, expr); RParen;               { Tuple(e::es) }
+  | a = application;                                                                          { a }
 
 application:
   | a = application; b = base; { App(a, b) }
@@ -197,34 +169,26 @@ base:
 */
 
 match_branches: 
-| Pipe; x = Id; vs = pattern_vars_opt; DoubleArrow; e = expr;                        { [MatchBr(x, vs, e)] }
-| Pipe; x = Id; vs = pattern_vars_opt; DoubleArrow; e = expr; bs = match_branches;   { MatchBr(x, vs, e):: bs }
+| Pipe; x = Id; vs = option(pattern_vars); DoubleArrow; e = expr;                        { [MatchBr(x, vs, e)] }
+| Pipe; x = Id; vs = option(pattern_vars); DoubleArrow; e = expr; bs = match_branches;   { MatchBr(x, vs, e):: bs }
 
 /* 
-<pattern_vars_opt> ::= $id | ( <list_of_ids> ) | e
-<list_of_ids> ::= $id | <list_of_ids>, $id
+<pattern_vars_opt> ::= $id | ( $id [, $id ]+ )
  */
-pattern_vars_opt:
-  |                                           { None }
-  | x = Id;                                   { Some [x] }
-  | LParen; xs =list_of_ids; RParen;          { Some xs }
-
-list_of_ids:
-  | x = Id;                           { [x] }
-  | x = Id; Comma; xs = list_of_ids   { x:: xs}
+pattern_vars:
+  | x = Id;                                                 { [x] }
+  | LParen; xs =separated_nonempty_list(Comma, Id); RParen; { xs }
 
 /* 
 <typ> ::=
-  | <type> -> <type>
+  | <typ> -> <typ>
   | <typ_tuple>
   | <typ_base>
 
-<typ_tuple> ::= 
-  | <typ_tuple> * <typ_base>
-  | <typ_base> * <typ_base>  
+<typ_tuple> ::= <typ_base> * <typ_base>*+
 
 <typ_base> ::= 
-         | ( <type> )
+         | ( <typ> )
          | int
          | bool
          | string
@@ -234,7 +198,7 @@ list_of_ids:
 
 typ: 
   | t1 = typ; Arrow; t2 = typ;  { FuncTy (t1, t2) }
-  | ts = typ_tuple;             { TupleTy (List.rev ts)}
+  | ts = typ_tuple;             { TupleTy (ts)}
   | t = typ_base;               { t }
 
 typ_base:
@@ -246,5 +210,4 @@ typ_base:
   | LParen; t = typ; RParen;    { t }
 
 typ_tuple:
-  | t1 = typ_base; Times; t2 = typ_base   { [t2; t1]}
-  | ts = typ_tuple; Times; t = typ_base   { t :: ts}
+  | t1 = typ_base; Times; t2 = separated_nonempty_list(Times, typ_base)   { t1::t2 }

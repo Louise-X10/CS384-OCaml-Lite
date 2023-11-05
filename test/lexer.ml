@@ -79,13 +79,18 @@ let parse_expr_tests = "test suite for parser (expr helper)" >::: [
 
     "let expression, with type" >::
         (fun _ -> assert_equal
-            (LetExp("x", [], Some IntTy, CInt 0, Add(Var "x", CInt 1)))
+            (LetExp("x", false, [], Some IntTy, CInt 0, Add(Var "x", CInt 1)))
             (parse_expr "let x : int = 0 in x + 1"));
 
     "let expression, no type" >::
     (fun _ -> assert_equal
-        (LetExp("x", [], None, CInt 0, Add(Var "x", CInt 1)))
+        (LetExp("x", false, [], None, CInt 0, Add(Var "x", CInt 1)))
         (parse_expr  "let x = 0 in x + 1"));
+
+    "let rec expression, no type" >::
+    (fun _ -> assert_equal
+        (LetExp("x", true, [], None, CInt 0, Add(Var "x", CInt 1)))
+        (parse_expr  "let rec x = 0 in x + 1"));
 
     "match expression (simple)" >::
     (fun _ -> assert_equal
@@ -118,23 +123,24 @@ let parse_expr_tests = "test suite for parser (expr helper)" >::: [
 
     "function application from helper let expression, no type" >::
     (fun _ -> assert_equal
-        (LetExp("f", [{ name="x"; p_type=Some IntTy}], Some BoolTy,
+        (LetExp("f", false, [{ name="x"; p_type=Some IntTy}], Some BoolTy,
         IfExp (LessThan(Var "x", CInt 0), CBool true, CBool false),
         App (Var "f", CInt 1)))
         (parse_expr
             "let f (x : int) : bool = if x < 0 then true else false in f 1"));
 ]
+
 let parse_tests = "test suite for parser (top level bindings)" >::: [
     "unit" >::
     (fun _ -> assert_equal
-        ([LetB("res", [], None, Unit)]
+        ([LetB("res", false, [], None, Unit)]
         )
         (parse "let res = ();;"));
 
     "let binding, with type" >::
     (fun _ -> assert_equal
         (
-          [LetB("f", [{ name="x"; p_type=Some IntTy}], Some BoolTy, 
+          [LetB("f", false, [{ name="x"; p_type=Some IntTy}], Some BoolTy, 
           IfExp (LessThan(Var "x", CInt 0), CBool true, CBool false))]
         )
         (parse
@@ -142,9 +148,9 @@ let parse_tests = "test suite for parser (top level bindings)" >::: [
 
     "function application from let binding, no type" >::
     (fun _ -> assert_equal
-        ([LetB("f", [{ name="x"; p_type=None}], None, 
+        ([LetB("f", false, [{ name="x"; p_type=None}], None, 
             IfExp (LessThan(Var "x", CInt 0), CBool true, CBool false));
-         LetB("result", [], None, App (Var "f", CInt 1))
+         LetB("result", false, [], None, App (Var "f", CInt 1))
         ])
         (parse
             "let f x = if x < 0 then true else false;;
@@ -154,9 +160,9 @@ let parse_tests = "test suite for parser (top level bindings)" >::: [
     "function application from let binding, with type" >::
     (fun _ -> assert_equal
         ([
-          LetB("f", [{ name="x"; p_type=Some IntTy}], Some BoolTy, 
+          LetB("f", false, [{ name="x"; p_type=Some IntTy}], Some BoolTy, 
           IfExp (LessThan(Var "x", CInt 0), CBool true, CBool false));
-          LetB("result", [], None, App (Var "f", CInt 1))
+          LetB("result", false, [], None, App (Var "f", CInt 1))
         ])
         (parse
             "let f (x : int) : bool = if x < 0 then true else false;;
