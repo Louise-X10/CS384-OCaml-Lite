@@ -93,9 +93,9 @@ program:
   | bs = program; b = binding;    { b :: bs }
 
 binding:
-  | Let; r = boption(Rec); x = Id; ps = list(param); Colon; t = typ;Eq; e = expr; DoubleSemicolon;   { LetB(x, r, ps, Some t, e)}
-  | Let; r = boption(Rec); x = Id; ps = list(param); Eq; e = expr; DoubleSemicolon;                  { LetB(x, r, ps, None, e )}
-  | Type; x = Id; Eq; ts = nonempty_list(typ_binding); DoubleSemicolon;                         { TypeB(x, List.rev ts)}
+  | Let; r = boption(Rec); x = Id; ps = param*; Colon; t = typ;Eq; e = expr; DoubleSemicolon;   { LetB(x, r, ps, Some t, e)}
+  | Let; r = boption(Rec); x = Id; ps = param*; Eq; e = expr; DoubleSemicolon;                  { LetB(x, r, ps, None, e )}
+  | Type; x = Id; Eq; ts = typ_binding+; DoubleSemicolon;                         { TypeB(x, List.rev ts)}
 
 typ_binding:
   | Pipe; x = Id               { (x, None)}
@@ -134,11 +134,11 @@ param:
  */
 
 expr:
-  | Let; r = boption(Rec); x = Id; ps = list(param); Colon; t = typ; Eq; e1 = expr; In; e2 = expr; { LetExp(x, r, List.rev ps, Some t, e1, e2) }
-  | Let; r = boption(Rec); x = Id; ps = list(param); Eq; e1 = expr; In; e2 = expr;              { LetExp(x, r, List.rev ps, None, e1, e2) }
+  | Let; r = boption(Rec); x = Id; ps = param*; Colon; t = typ; Eq; e1 = expr; In; e2 = expr; { LetExp(x, r, List.rev ps, Some t, e1, e2) }
+  | Let; r = boption(Rec); x = Id; ps = param*; Eq; e1 = expr; In; e2 = expr;              { LetExp(x, r, List.rev ps, None, e1, e2) }
   | If; e1 = expr; Then; e2 = expr; Else; e3 = expr;                          { IfExp(e1,e2,e3) }
-  | Fun; ps = nonempty_list(param); Colon; t = typ; DoubleArrow; e = expr;          { Function(List.rev ps, Some t, e) }
-  | Fun; ps = nonempty_list(param); DoubleArrow; e = expr;                          { Function(List.rev ps, None, e) }
+  | Fun; ps = param+; Colon; t = typ; DoubleArrow; e = expr;          { Function(List.rev ps, Some t, e) }
+  | Fun; ps = param+; DoubleArrow; e = expr;                          { Function(List.rev ps, None, e) }
   | Match; e = expr; With; bs = match_branches;                               { MatchExp(e, bs) } 
   | e1 = expr; Plus; e2 = expr;                                               { Add(e1,e2) }
   | e1 = expr; Minus; e2 = expr;                                              { Sub(e1,e2) }
