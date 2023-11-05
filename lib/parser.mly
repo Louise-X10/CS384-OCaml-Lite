@@ -67,8 +67,7 @@
 %type <typ> typ typ_base 
 %type <typ list> typ_tuple
 %type <matchbranch list> match_branches
-%type <pattern_vars option> pattern_vars_opt 
-%type <string list> list_of_ids
+%type <pattern_vars> pattern_vars
 
 %%
 
@@ -197,21 +196,15 @@ base:
 */
 
 match_branches: 
-| Pipe; x = Id; vs = pattern_vars_opt; DoubleArrow; e = expr;                        { [MatchBr(x, vs, e)] }
-| Pipe; x = Id; vs = pattern_vars_opt; DoubleArrow; e = expr; bs = match_branches;   { MatchBr(x, vs, e):: bs }
+| Pipe; x = Id; vs = option(pattern_vars); DoubleArrow; e = expr;                        { [MatchBr(x, vs, e)] }
+| Pipe; x = Id; vs = option(pattern_vars); DoubleArrow; e = expr; bs = match_branches;   { MatchBr(x, vs, e):: bs }
 
 /* 
-<pattern_vars_opt> ::= $id | ( <list_of_ids> ) | e
-<list_of_ids> ::= $id | <list_of_ids>, $id
+<pattern_vars_opt> ::= $id | ( $id [, $id ]+ )
  */
-pattern_vars_opt:
-  |                                           { None }
-  | x = Id;                                   { Some [x] }
-  | LParen; xs =list_of_ids; RParen;          { Some xs }
-
-list_of_ids:
-  | x = Id;                           { [x] }
-  | x = Id; Comma; xs = list_of_ids   { x:: xs}
+pattern_vars:
+  | x = Id;                                                 { [x] }
+  | LParen; xs =separated_nonempty_list(Comma, Id); RParen; { xs }
 
 /* 
 <typ> ::=
