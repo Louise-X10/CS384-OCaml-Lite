@@ -129,6 +129,7 @@ let parse_expr_tests = "test suite for parser (expr helper)" >::: [
         (parse_expr
             "let f (x : int) : bool = if x < 0 then true else false in f 1"));
 ]
+
 let parse_tests = "test suite for parser (top level bindings)" >::: [
     "unit" >::
     (fun _ -> assert_equal

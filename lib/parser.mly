@@ -89,11 +89,12 @@ start_expr:
 binding:
   | Let; r = boption(Rec); x = Id; ps = param*; Colon; t = typ;Eq; e = expr; DoubleSemicolon;   { LetB(x, r, ps, Some t, e)}
   | Let; r = boption(Rec); x = Id; ps = param*; Eq; e = expr; DoubleSemicolon;                  { LetB(x, r, ps, None, e )}
-  | Type; x = Id; Eq; ts = typ_binding+; DoubleSemicolon;                         { TypeB(x,  ts)}
+  | Type; x = Id; Eq; ts = typ_binding+; DoubleSemicolon;                                       { TypeB(x,  ts)}
 
 typ_binding:
   | Pipe; x = Id               { (x, None)}
   | Pipe; x = Id; Of; t = typ  { (x, Some t)}
+
 
 param:
   | LParen; x = Id; Colon; t = typ; RParen; { { name = x; p_type = Some t } }
@@ -129,25 +130,25 @@ param:
 
 expr:
   | Let; r = boption(Rec); x = Id; ps = param*; Colon; t = typ; Eq; e1 = expr; In; e2 = expr; { LetExp(x, r, ps, Some t, e1, e2) }
-  | Let; r = boption(Rec); x = Id; ps = param*; Eq; e1 = expr; In; e2 = expr;              { LetExp(x, r, ps, None, e1, e2) }
-  | If; e1 = expr; Then; e2 = expr; Else; e3 = expr;                          { IfExp(e1,e2,e3) }
-  | Fun; ps = param+; Colon; t = typ; DoubleArrow; e = expr;                  { Function(ps, Some t, e) }
-  | Fun; ps = param+; DoubleArrow; e = expr;                                  { Function(ps, None, e) }
-  | Match; e = expr; With; bs = match_branches;                               { MatchExp(e, bs) } 
-  | e1 = expr; Plus; e2 = expr;                                               { Add(e1,e2) }
-  | e1 = expr; Minus; e2 = expr;                                              { Sub(e1,e2) }
-  | e1 = expr; Times; e2 = expr;                                              { Mul(e1,e2) }
-  | e1 = expr; Divide; e2 = expr;                                             { Div(e1,e2) }
-  | e1 = expr; Mod; e2 = expr;                                                { Modulo(e1,e2) }
-  | e1 = expr; Lt; e2 = expr;                                                 { LessThan(e1,e2) }
-  | e1 = expr; Eq; e2 = expr;                                                 { Equal(e1,e2) }
-  | e1 = expr; Concat; e2 = expr;                                             { StrConcat(e1,e2) }
-  | e1 = expr; And; e2 = expr;                                                { LogicAnd(e1,e2) }
-  | e1 = expr; Or; e2 = expr;                                                 { LogicOr(e1,e2) }
-  | Not; e = expr;                                                            { LogicNegate(e) }
-  | Negate; e = expr;                                                           { IntNegate(e) } 
-  | LParen; e = expr; Comma; es = separated_nonempty_list(Comma, expr); RParen; { Tuple(e::es) }
-  | a = application;                                                            { a }
+  | Let; r = boption(Rec); x = Id; ps = param*; Eq; e1 = expr; In; e2 = expr;                 { LetExp(x, r, ps, None, e1, e2) }
+  | If; e1 = expr; Then; e2 = expr; Else; e3 = expr;                                          { IfExp(e1,e2,e3) }
+  | Fun; ps = param+; Colon; t = typ; DoubleArrow; e = expr;                                  { Function(ps, Some t, e) }
+  | Fun; ps = param+; DoubleArrow; e = expr;                                                  { Function(ps, None, e) }
+  | Match; e = expr; With; bs = match_branches;                                               { MatchExp(e, bs) } 
+  | e1 = expr; Plus; e2 = expr;                                                               { Add(e1,e2) }
+  | e1 = expr; Minus; e2 = expr;                                                              { Sub(e1,e2) }
+  | e1 = expr; Times; e2 = expr;                                                              { Mul(e1,e2) }
+  | e1 = expr; Divide; e2 = expr;                                                             { Div(e1,e2) }
+  | e1 = expr; Mod; e2 = expr;                                                                { Modulo(e1,e2) }
+  | e1 = expr; Lt; e2 = expr;                                                                 { LessThan(e1,e2) }
+  | e1 = expr; Eq; e2 = expr;                                                                 { Equal(e1,e2) }
+  | e1 = expr; Concat; e2 = expr;                                                             { StrConcat(e1,e2) }
+  | e1 = expr; And; e2 = expr;                                                                { LogicAnd(e1,e2) }
+  | e1 = expr; Or; e2 = expr;                                                                 { LogicOr(e1,e2) }
+  | Not; e = expr;                                                                            { LogicNegate(e) }
+  | Negate; e = expr;                                                                         { IntNegate(e) } 
+  | LParen; e = expr; Comma; es = separated_nonempty_list(Comma, expr); RParen;               { Tuple(e::es) }
+  | a = application;                                                                          { a }
 
 application:
   | a = application; b = base; { App(a, b) }
@@ -180,14 +181,14 @@ pattern_vars:
 
 /* 
 <typ> ::=
-  | <type> -> <type>
+  | <typ> -> <typ>
   | <typ_tuple>
   | <typ_base>
 
 <typ_tuple> ::= <typ_base> * <typ_base>*+
 
 <typ_base> ::= 
-         | ( <type> )
+         | ( <typ> )
          | int
          | bool
          | string
