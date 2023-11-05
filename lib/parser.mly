@@ -95,10 +95,8 @@ program:
   | bs = program; b = binding;    { b :: bs }
 
 binding:
-  | Let; x = Id; ps = params; Colon; t = typ;Eq; e = expr; DoubleSemicolon;       { LetB(x, ps, Some t, e)}
-  | Let; x = Id; ps = params; Eq; e = expr; DoubleSemicolon;                      { LetB(x, ps, None, e )}
-  | Let; Rec; x = Id; ps = params; Colon; t = typ; Eq; e = expr; DoubleSemicolon; { LetRecB(x, ps, Some t, e)}
-  | Let; Rec; x = Id; ps = params; Eq; e = expr; DoubleSemicolon;                 { LetRecB(x, ps, None, e )}
+  | Let; r = boption(Rec); x = Id; ps = params; Colon; t = typ;Eq; e = expr; DoubleSemicolon;       { LetB(x, r, ps, Some t, e)}
+  | Let; r = boption(Rec); x = Id; ps = params; Eq; e = expr; DoubleSemicolon;                      { LetB(x, r, ps, None, e )}
   | Type; x = Id; Eq; ts = typ_bindings; DoubleSemicolon;                         { TypeB(x, List.rev ts)}
 
 typ_bindings:
@@ -150,10 +148,8 @@ param:
  */
 
 expr:
-  | Let; x = Id; ps = params; Colon; t = typ; Eq; e1 = expr; In; e2 = expr;   { LetExp(x, List.rev ps, Some t, e1, e2) }
-  | Let; x = Id; ps = params; Eq ; e1 = expr; In; e2 = expr;                  { LetExp(x, List.rev ps, None, e1, e2) }
-  | Let; Rec; x = Id; ps = params; Colon; t = typ; Eq; e1 = expr; In; e2 = expr; { LetRecExp(x, List.rev ps, Some t, e1, e2) }
-  | Let; Rec; x = Id; ps = params; Eq; e1 = expr; In; e2 = expr;              { LetRecExp(x, List.rev ps, None, e1, e2) }
+  | Let; r = boption(Rec); x = Id; ps = params; Colon; t = typ; Eq; e1 = expr; In; e2 = expr; { LetExp(x, r, List.rev ps, Some t, e1, e2) }
+  | Let; r = boption(Rec); x = Id; ps = params; Eq; e1 = expr; In; e2 = expr;              { LetExp(x, r, List.rev ps, None, e1, e2) }
   | If; e1 = expr; Then; e2 = expr; Else; e3 = expr;                          { IfExp(e1,e2,e3) }
   | Fun; ps = require_params; Colon; t = typ; DoubleArrow; e = expr;          { Function(List.rev ps, Some t, e) }
   | Fun; ps = require_params; DoubleArrow; e = expr;                          { Function(List.rev ps, None, e) }
