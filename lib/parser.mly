@@ -56,12 +56,10 @@
 %start <program> start
 %start <expr> start_expr
 
-%type <program> program
 %type <binding> binding
 %type <typ_binding> typ_binding
 %type <param> param
 %type <expr> expr application base
-%type <expr list> expr_tuple
 %type <typ> typ typ_base 
 %type <typ list> typ_tuple
 %type <matchbranch list> match_branches
@@ -70,7 +68,7 @@
 %%
 
 start:
-  | p = program; EOF; { List.rev p } 
+  | bs = binding+; EOF; { bs } 
 
 start_expr:
   | e = expr; EOF; { e } 
@@ -88,14 +86,10 @@ start_expr:
           | ( $id : <type> )
  */
 
-program: 
-  | b = binding;                  { [b] }
-  | bs = program; b = binding;    { b :: bs }
-
 binding:
   | Let; r = boption(Rec); x = Id; ps = param*; Colon; t = typ;Eq; e = expr; DoubleSemicolon;   { LetB(x, r, ps, Some t, e)}
   | Let; r = boption(Rec); x = Id; ps = param*; Eq; e = expr; DoubleSemicolon;                  { LetB(x, r, ps, None, e )}
-  | Type; x = Id; Eq; ts = typ_binding+; DoubleSemicolon;                         { TypeB(x, List.rev ts)}
+  | Type; x = Id; Eq; ts = typ_binding+; DoubleSemicolon;                         { TypeB(x,  ts)}
 
 typ_binding:
   | Pipe; x = Id               { (x, None)}
@@ -134,11 +128,11 @@ param:
  */
 
 expr:
-  | Let; r = boption(Rec); x = Id; ps = param*; Colon; t = typ; Eq; e1 = expr; In; e2 = expr; { LetExp(x, r, List.rev ps, Some t, e1, e2) }
-  | Let; r = boption(Rec); x = Id; ps = param*; Eq; e1 = expr; In; e2 = expr;              { LetExp(x, r, List.rev ps, None, e1, e2) }
+  | Let; r = boption(Rec); x = Id; ps = param*; Colon; t = typ; Eq; e1 = expr; In; e2 = expr; { LetExp(x, r, ps, Some t, e1, e2) }
+  | Let; r = boption(Rec); x = Id; ps = param*; Eq; e1 = expr; In; e2 = expr;              { LetExp(x, r, ps, None, e1, e2) }
   | If; e1 = expr; Then; e2 = expr; Else; e3 = expr;                          { IfExp(e1,e2,e3) }
-  | Fun; ps = param+; Colon; t = typ; DoubleArrow; e = expr;          { Function(List.rev ps, Some t, e) }
-  | Fun; ps = param+; DoubleArrow; e = expr;                          { Function(List.rev ps, None, e) }
+  | Fun; ps = param+; Colon; t = typ; DoubleArrow; e = expr;                  { Function(ps, Some t, e) }
+  | Fun; ps = param+; DoubleArrow; e = expr;                                  { Function(ps, None, e) }
   | Match; e = expr; With; bs = match_branches;                               { MatchExp(e, bs) } 
   | e1 = expr; Plus; e2 = expr;                                               { Add(e1,e2) }
   | e1 = expr; Minus; e2 = expr;                                              { Sub(e1,e2) }
@@ -151,13 +145,9 @@ expr:
   | e1 = expr; And; e2 = expr;                                                { LogicAnd(e1,e2) }
   | e1 = expr; Or; e2 = expr;                                                 { LogicOr(e1,e2) }
   | Not; e = expr;                                                            { LogicNegate(e) }
-  | Negate; e = expr;                                                         { IntNegate(e) } 
-  | LParen; es = expr_tuple; RParen;                                          { Tuple(List.rev es) }
-  | a = application;                                                          { a }
-
-expr_tuple: 
-  | e1 = expr; Comma; e2 = expr;               { [e2; e1] }
-  | es = expr_tuple; Comma; e = expr;          { e :: es }
+  | Negate; e = expr;                                                           { IntNegate(e) } 
+  | LParen; e = expr; Comma; es = separated_nonempty_list(Comma, expr); RParen; { Tuple(e::es) }
+  | a = application;                                                            { a }
 
 application:
   | a = application; b = base; { App(a, b) }
@@ -194,9 +184,7 @@ pattern_vars:
   | <typ_tuple>
   | <typ_base>
 
-<typ_tuple> ::= 
-  | <typ_tuple> * <typ_base>
-  | <typ_base> * <typ_base>  
+<typ_tuple> ::= <typ_base> * <typ_base>*+
 
 <typ_base> ::= 
          | ( <type> )
@@ -209,7 +197,7 @@ pattern_vars:
 
 typ: 
   | t1 = typ; Arrow; t2 = typ;  { FuncTy (t1, t2) }
-  | ts = typ_tuple;             { TupleTy (List.rev ts)}
+  | ts = typ_tuple;             { TupleTy (ts)}
   | t = typ_base;               { t }
 
 typ_base:
@@ -221,5 +209,4 @@ typ_base:
   | LParen; t = typ; RParen;    { t }
 
 typ_tuple:
-  | t1 = typ_base; Times; t2 = typ_base   { [t2; t1]}
-  | ts = typ_tuple; Times; t = typ_base   { t :: ts}
+  | t1 = typ_base; Times; t2 = separated_nonempty_list(Times, typ_base)   { t1::t2 }
