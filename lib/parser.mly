@@ -62,7 +62,7 @@
 %type <expr> expr application base
 %type <typ> typ typ_base 
 %type <typ list> typ_tuple
-%type <matchbranch list> match_branches
+%type <matchbranch> match_branch
 %type <pattern_vars> pattern_vars
 
 %%
@@ -87,14 +87,12 @@ start_expr:
  */
 
 binding:
-  | Let; r = boption(Rec); x = Id; ps = param*; Colon; t = typ;Eq; e = expr; DoubleSemicolon;   { LetB(x, r, ps, Some t, e)}
-  | Let; r = boption(Rec); x = Id; ps = param*; Eq; e = expr; DoubleSemicolon;                  { LetB(x, r, ps, None, e )}
-  | Type; x = Id; Eq; ts = typ_binding+; DoubleSemicolon;                                       { TypeB(x,  ts)}
+  | Let; r = boption(Rec); x = Id; ps = param*; t = option(preceded(Colon, typ));Eq; e = expr; DoubleSemicolon;   { LetB(x, r, ps, t, e)}
+  | Type; x = Id; Eq; ts = typ_binding+; DoubleSemicolon;                                                         { TypeB(x,  ts)}
 
 typ_binding:
   | Pipe; x = Id               { (x, None)}
   | Pipe; x = Id; Of; t = typ  { (x, Some t)}
-
 
 param:
   | LParen; x = Id; Colon; t = typ; RParen; { { name = x; p_type = Some t } }
@@ -108,7 +106,7 @@ param:
          | <expr> <binop> <expr>
          | <unop> <expr>
          | ( <expr> [, <expr>]+ )
-         | match <expr> with <match_branches>
+         | match <expr> with ['|' <match_branch>]+
          # | <expr> <expr> # change to <app>
          | <app>
 
@@ -129,12 +127,10 @@ param:
  */
 
 expr:
-  | Let; r = boption(Rec); x = Id; ps = param*; Colon; t = typ; Eq; e1 = expr; In; e2 = expr; { LetExp(x, r, ps, Some t, e1, e2) }
-  | Let; r = boption(Rec); x = Id; ps = param*; Eq; e1 = expr; In; e2 = expr;                 { LetExp(x, r, ps, None, e1, e2) }
+  | Let; r = boption(Rec); x = Id; ps = param*; t = option(preceded(Colon, typ)); Eq; e1 = expr; In; e2 = expr; { LetExp(x, r, ps, t, e1, e2) }
   | If; e1 = expr; Then; e2 = expr; Else; e3 = expr;                                          { IfExp(e1,e2,e3) }
-  | Fun; ps = param+; Colon; t = typ; DoubleArrow; e = expr;                                  { Function(ps, Some t, e) }
-  | Fun; ps = param+; DoubleArrow; e = expr;                                                  { Function(ps, None, e) }
-  | Match; e = expr; With; bs = match_branches;                                               { MatchExp(e, bs) } 
+  | Fun; ps = param+; t = option(preceded(Colon, typ)); DoubleArrow; e = expr;                { Function(ps, t, e) }
+  | Match; e = expr; With; bs = match_branch+;                                               { MatchExp(e, bs) } 
   | e1 = expr; Plus; e2 = expr;                                                               { Add(e1,e2) }
   | e1 = expr; Minus; e2 = expr;                                                              { Sub(e1,e2) }
   | e1 = expr; Times; e2 = expr;                                                              { Mul(e1,e2) }
@@ -163,21 +159,16 @@ base:
   | x = Id;                                                                   { Var x }
   | LParen; RParen;                                                           { Unit }
 
-/* 
-<match_expr> ::=  match <expr> with <match_branches>
-<match_branches> ::= ['|' <match_branch>]+
-*/
-
-match_branches: 
-| Pipe; x = Id; vs = option(pattern_vars); DoubleArrow; e = expr;                        { [MatchBr(x, vs, e)] }
-| Pipe; x = Id; vs = option(pattern_vars); DoubleArrow; e = expr; bs = match_branches;   { MatchBr(x, vs, e):: bs }
+match_branch: 
+| Pipe; x = Id; vs = option(pattern_vars); DoubleArrow; e = expr;   { MatchBr(x, vs, e) }
 
 /* 
-<pattern_vars_opt> ::= $id | ( $id [, $id ]+ )
+<pattern_vars> ::= $id | ( $id [, $id ]+ )
  */
+ 
 pattern_vars:
-  | x = Id;                                                 { [x] }
-  | LParen; xs =separated_nonempty_list(Comma, Id); RParen; { xs }
+  | x = Id;                                                  { [x] }
+  | LParen; xs = separated_nonempty_list(Comma, Id); RParen; { xs }
 
 /* 
 <typ> ::=
