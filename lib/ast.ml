@@ -6,19 +6,9 @@ and typ_binding = string * typ option
 
 and expr =
   (* Binary operations *)
-  | Add of expr * expr
-  | Sub of expr * expr
-  | Mul of expr * expr
-  | Div of expr * expr
-  | Modulo of expr * expr
-  | LessThan of expr * expr
-  | Equal of expr * expr
-  | LogicAnd of expr * expr
-  | LogicOr of expr * expr
-  | StrConcat of expr * expr
+  | Binop of expr * binop * expr
   (* Unary operations *)
-  | LogicNegate of expr
-  | IntNegate of expr
+  | Unop of unop * expr
   (* Base expressions *)
   | CInt of int
   | CString of string
@@ -32,6 +22,22 @@ and expr =
   | App of expr * expr (* <expr> <expr> *)
   | Tuple of expr list (* ( <expr> [, <expr>]+ ) *)
   | Unit
+
+and binop = 
+  | Add 
+  | Sub
+  | Mul
+  | Div
+  | Modulo
+  | LessThan
+  | Equal
+  | LogicAnd
+  | LogicOr
+  | StrConcat
+
+and unop = 
+  | LogicNegate
+  | IntNegate
 
 and matchbranch = 
   | MatchBr of string * pattern_vars option  * expr (* <match_branch> ::= $id [<pattern_vars>] => <expr> *)
@@ -51,5 +57,6 @@ and typ =
   | FuncTy of typ * typ 
   | TupleTy of typ list
   | CustomTy of string
+[@@deriving show]
 
 type program = binding list

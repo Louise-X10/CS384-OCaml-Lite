@@ -37,59 +37,69 @@ let parse_expr_tests = "test suite for parser (expr helper)" >::: [
 
     "arithmetic computations" >::
     (fun _ -> assert_equal
-        (Modulo(
-            Sub(
-                Add(
-                Div(CInt 1, CInt 2), 
-                Mul(CInt 3, CInt 4)),
-            CInt 4),
-        CInt 6)
+        (
+            Binop(Binop(
+                Binop(
+                    Binop(CInt 1, Div, CInt 2),
+                    Add, Binop(CInt 3, Mul, CInt 4)), 
+                Sub, CInt 4), 
+            Modulo, CInt 6)
+
         )
         (parse_expr "(1 / 2 + 3 * 4 - 4 ) mod 6"));
 
     "comparisons" >::
     (fun _ -> assert_equal
-        (Equal(LessThan(Add(CInt 2, CInt 3), CInt 7), CBool true))
+        (Binop(
+            Binop(Binop(CInt 2, Add, CInt 3),
+            LessThan, CInt 7), 
+            Equal, CBool true
+        ))
         (parse_expr "(2 + 3 < 7) = true"));
 
     "logic expressions" >::
     (fun _ -> assert_equal
-        (LogicOr(LogicAnd(LogicNegate(CBool true), CBool false), CBool true))
+        (Binop(
+            Binop(
+                Unop(LogicNegate, CBool true),
+                LogicAnd, CBool false),
+            LogicOr, CBool true
+        ))
         (parse_expr "not true && false || true"));
 
     "string concat" >::
     (fun _ -> assert_equal
-        (StrConcat(CString "hello", CString "world"))
+        (Binop(CString "hello", StrConcat, CString "world"))
         (parse_expr "\"hello\" ^ \"world\""));
 
     "integer negate" >::
     (fun _ -> assert_equal
-        (Add(IntNegate (CInt 1), CInt 2))
+        (Binop(Unop(IntNegate , CInt 1), Add, CInt 2))
         (parse_expr "~1 + 2"));
 
     "if expression (simple)" >::
         (fun _ -> assert_equal
-            (IfExp (LessThan(CInt 2, CInt 3), CBool true, CBool false))
+            (IfExp (Binop(CInt 2, LessThan, CInt 3), CBool true, CBool false))
             (parse_expr  "if 2 < 3 then true else false"));
 
     "if expression (nested expr) " >::
         (fun _ -> assert_equal
-            (IfExp (LessThan(CInt 2, CInt 3), Add(CInt 1, CInt 2), Add(CInt 2, CInt 2)))
+            (IfExp (Binop(CInt 2, LessThan, CInt 3), Binop(CInt 1, Add, CInt 2), Binop(CInt 2, Add, CInt 2)))
             (parse_expr  "if 2 < 3 then 1+2 else 2+2"));
 
     "let expression, with type" >::
         (fun _ -> assert_equal
-            (LetExp("x", false, [], Some IntTy, CInt 0, Add(Var "x", CInt 1)))
+            (LetExp("x", false, [], Some IntTy, CInt 0, Binop(Var "x", Add, CInt 1)))
             (parse_expr "let x : int = 0 in x + 1"));
 
     "let expression, no type" >::
     (fun _ -> assert_equal
-        (LetExp("x", false, [], None, CInt 0, Add(Var "x", CInt 1)))
+        (LetExp("x", false, [], None, CInt 0, Binop(Var "x", Add, CInt 1)))
         (parse_expr  "let x = 0 in x + 1"));
 
     "let rec expression, no type" >::
     (fun _ -> assert_equal
-        (LetExp("x", true, [], None, CInt 0, Add(Var "x", CInt 1)))
+        (LetExp("x", true, [], None, CInt 0, Binop(Var "x", Add, CInt 1)))
         (parse_expr  "let rec x = 0 in x + 1"));
 
     "match expression (simple)" >::
@@ -101,7 +111,7 @@ let parse_expr_tests = "test suite for parser (expr helper)" >::: [
     "match expression (nested expr)" >::
     (fun _ -> assert_equal
         (MatchExp(Var "p", [
-            MatchBr("Pair", Some ["x"; "y"], Add (Var "x", Var "y"))]))
+            MatchBr("Pair", Some ["x"; "y"], Binop(Var "x", Add, Var "y"))]))
         (parse_expr  "match p with | Pair (x, y) => x + y"));
 
     "nested match expression" >::
@@ -112,19 +122,19 @@ let parse_expr_tests = "test suite for parser (expr helper)" >::: [
     "function expression, no type" >::
     (fun _ -> assert_equal
         (Function([{ name="x"; p_type=None }; { name="y"; p_type=None }], Some IntTy, 
-        Add(Var "x", Mul(CInt 2, Var "y"))))
+        Binop(Var "x", Add, Binop(CInt 2, Mul, Var "y"))))
         (parse_expr  "fun x y : int => x + 2 * y"));
 
     "function expression, with type" >::
     (fun _ -> assert_equal
         (Function([{ name="x"; p_type=Some IntTy}; { name="y"; p_type=Some IntTy}], Some IntTy, 
-        Add(Var "x", Mul(CInt 2, Var "y"))))
+        Binop(Var "x", Add, Binop(CInt 2, Mul, Var "y"))))
         (parse_expr  "fun (x:int) (y:int) : int => x + 2 * y"));
 
     "function application from helper let expression, no type" >::
     (fun _ -> assert_equal
         (LetExp("f", false, [{ name="x"; p_type=Some IntTy}], Some BoolTy,
-        IfExp (LessThan(Var "x", CInt 0), CBool true, CBool false),
+        IfExp (Binop(Var "x", LessThan, CInt 0), CBool true, CBool false),
         App (Var "f", CInt 1)))
         (parse_expr
             "let f (x : int) : bool = if x < 0 then true else false in f 1"));
@@ -141,7 +151,7 @@ let parse_tests = "test suite for parser (top level bindings)" >::: [
     (fun _ -> assert_equal
         (
           [LetB("f", false, [{ name="x"; p_type=Some IntTy}], Some BoolTy, 
-          IfExp (LessThan(Var "x", CInt 0), CBool true, CBool false))]
+          IfExp (Binop(Var "x", LessThan, CInt 0), CBool true, CBool false))]
         )
         (parse
             "let f (x : int) : bool = if x < 0 then true else false;;"));
@@ -149,7 +159,7 @@ let parse_tests = "test suite for parser (top level bindings)" >::: [
     "function application from let binding, no type" >::
     (fun _ -> assert_equal
         ([LetB("f", false, [{ name="x"; p_type=None}], None, 
-            IfExp (LessThan(Var "x", CInt 0), CBool true, CBool false));
+            IfExp (Binop(Var "x", LessThan, CInt 0), CBool true, CBool false));
          LetB("result", false, [], None, App (Var "f", CInt 1))
         ])
         (parse
@@ -161,7 +171,7 @@ let parse_tests = "test suite for parser (top level bindings)" >::: [
     (fun _ -> assert_equal
         ([
           LetB("f", false, [{ name="x"; p_type=Some IntTy}], Some BoolTy, 
-          IfExp (LessThan(Var "x", CInt 0), CBool true, CBool false));
+          IfExp (Binop(Var "x", LessThan, CInt 0), CBool true, CBool false));
           LetB("result", false, [], None, App (Var "f", CInt 1))
         ])
         (parse
