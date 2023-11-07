@@ -173,13 +173,9 @@ let tokenize (s : string) : token list =
     | t -> helper (t :: acc) in
   helper []
 
-let parse_lexbuf (b : Lexing.lexbuf) : Ast.program =
-  start tok b
+let parse s : Ast.program = start tok (Lexing.from_string s)
 
-let parse s = parse_lexbuf (Lexing.from_string s)
+let parse_expr s : Ast.expr = start_expr tok (Lexing.from_string s)
 
-let parse_expr_lexbuf (b : Lexing.lexbuf) : Ast.expr =
-  start_expr tok b
-
-let parse_expr s = parse_expr_lexbuf (Lexing.from_string s)
+let parse_type s : Ast.typ = start_typ tok (Lexing.from_string s)
 }

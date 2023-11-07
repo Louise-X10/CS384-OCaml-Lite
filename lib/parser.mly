@@ -55,6 +55,7 @@
 
 %start <program> start
 %start <expr> start_expr
+%start <typ> start_typ
 
 %type <binding> binding
 %type <typ_binding> typ_binding
@@ -74,6 +75,9 @@ start:
 
 start_expr:
   | e = expr; EOF; { e } 
+
+start_typ:
+  | e = typ; EOF; { e } 
 
 /* 
 <program> ::= [<binding> ;;]+

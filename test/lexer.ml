@@ -166,7 +166,6 @@ let parse_tests = "test suite for parser (top level bindings)" >::: [
             "let f x = if x < 0 then true else false;;
             let result = f 1;;"));
 
-    
     "function application from let binding, with type" >::
     (fun _ -> assert_equal
         ([
@@ -186,81 +185,113 @@ let parse_tests = "test suite for parser (top level bindings)" >::: [
         (parse "type pairing = | Pair of int * int;;"));
   ]
 
-(* let type_tests = "test suite for typechecker" >::: [
-
-  "built-in int_of_string" >::
-  (fun _ -> assert_equal ~printer:tok_to_str
-      (FuncTy (IntTy, StringTy))
-      (typecheck (parse "int_of_string")));
-
-  "built-in string_of_int" >::
-  (fun _ -> assert_equal ~printer:tok_to_str
-      (FuncTy (StringTy, IntTy))
-      (typecheck (parse "string_of_int")));
-
-  "built-in print_string" >::
-  (fun _ -> assert_equal ~printer:tok_to_str
-      (FuncTy (StringTy, UnitTy))
-      (typecheck (parse "print_string")));
-
+let parse_typ_tests = "test suite for parser (top level bindings)" >::: [
     "tuple type" >::
-  (fun _ -> assert_equal ~printer:tok_to_str
-      (TupleTy [IntTy; IntTy; IntTy])
-      (typecheck (parse "int * int * int")));
+    (fun _ -> assert_equal ~printer:show_typ
+        (TupleTy [IntTy; IntTy; IntTy])
+        (parse_type "int * int * int"));
 
     "nested tuple type (left)" >::
-    (fun _ -> assert_equal ~printer:tok_to_str
-        (TupleTy [ TupleTy [IntTy; IntTy]; IntTy])
-        (typecheck (parse "(int * int) * int")));
+    (fun _ -> assert_equal ~printer:show_typ
+        (TupleTy [TupleTy [IntTy; IntTy]; IntTy])
+        (parse_type "(int * int) * int"));
 
     "nested tuple type (right)" >::
-    (fun _ -> assert_equal ~printer:tok_to_str
+    (fun _ -> assert_equal ~printer:show_typ
         (TupleTy [ IntTy; TupleTy [IntTy; IntTy]])
-        (typecheck (parse "int * (int * int）")));
+        (parse_type "int * (int * int)"));
 
-  "id function" >::
-  (fun _ -> assert_equal ~printer:tok_to_str
-      (FuncTy (IntTy, IntTy))
-      (typecheck (parse "fun x : int => x")));
+    "function with tuple type" >::
+    (fun _ -> assert_equal ~printer:show_typ
+        (parse_type "(int * int) -> (int * int)")
+        (parse_type "int * int -> int * int"));
+]
 
-  "add function" >::
-  (fun _ -> assert_equal ~printer:tok_to_str
-      (FuncTy (TupleTy [IntTy; IntTy], IntTy))
-      (typecheck (parse "fun x y : int => x + y")));
+(* let type_tests = "test suite for typechecker" >::: [
 
-  "application" >::
-  (fun _ -> assert_equal ~printer:tok_to_str
-      (IntTy)
-      (typecheck (parse "let f = fun x y : int => x + 2y in f 1 2")));
+    "built-in int_of_string" >::
+    (fun _ -> assert_equal ~printer:show_typ
+        (FuncTy (IntTy, StringTy))
+        (typecheck (parse "int_of_string")));
 
-  "application convoluted" >::
-      (fun _ -> assert_equal ~printer:tok_to_str
-          (FuncTy( FuncTy(IntTy, IntTy), FuncTy(IntTy, IntTy) ))
-          (typecheck (parse "
-          let f = fun x : int => 2x in
-          fun f => (fun a : int => (f a))")));
+    "built-in string_of_int" >::
+    (fun _ -> assert_equal ~printer:show_typ
+        (FuncTy (StringTy, IntTy))
+        (typecheck (parse "string_of_int")));
 
-  "unit type" >::
-      (fun _ -> assert_equal ~printer:tok_to_str
-          (UnitTy)
-          (typecheck (parse "print_string \"hello\" ")));
+    "built-in print_string" >::
+    (fun _ -> assert_equal ~printer:show_typ
+        (FuncTy (StringTy, UnitTy))
+        (typecheck (parse "print_string")));
 
-  "ill-typed" >::
-      (fun _ -> try
-          let _ = typecheck (parse "
-          let f = fun (x:int) => (fun (y:bool) => ()) in f 3 ()") in
-          assert_failure "'let f = fun (x:int) => (fun (y:bool) => ()) in f 3 ()' passed the typechecker"
-      with
-      | TypeError _ -> assert_bool "" true
-      | _ -> assert_failure "Unexpected error");
+    "tuple type" >::
+    (fun _ -> assert_equal ~printer:show_typ
+        (TupleTy [IntTy; IntTy; IntTy])
+        (typecheck (parse "(1, 2, 3)")));
 
-  "apply inside lambda" >::
-      (fun _ -> try
-          let _ = typecheck (parse "fun x => x y") in
-          assert_failure "'fun x => x y' passed the typechecker"
-      with
-      | TypeError _ -> assert_bool "" true
-      | _ -> assert_failure "Unexpected error");
+    "nested tuple type (left)" >::
+    (fun _ -> assert_equal ~printer:show_typ
+        (TupleTy [ TupleTy [IntTy; IntTy]; IntTy])
+        (typecheck (parse "((1, 2), 3)")));
+
+    "nested tuple type (right)" >::
+    (fun _ -> assert_equal ~printer:show_typ
+        (TupleTy [ IntTy; TupleTy [IntTy; IntTy]])
+        (typecheck (parse "(1, (2, 3))")));
+
+    "id function" >::
+    (fun _ -> assert_equal ~printer:show_typ
+        (FuncTy (IntTy, IntTy))
+        (typecheck (parse "fun x : int => x")));
+
+    "add function" >::
+    (fun _ -> assert_equal ~printer:show_typ
+        (FuncTy (TupleTy [IntTy; IntTy], IntTy))
+        (typecheck (parse "fun x y : int => x + y")));
+    
+    "function with tuple type" >::
+    (fun _ -> assert_equal ~printer:show_typ
+        (typecheck (parse "(int * int) -> (int * int）"))
+        (typecheck (parse "fun (x, y) => (x+1, y+1)")));
+
+    "application" >::
+    (fun _ -> assert_equal ~printer:show_typ
+        (IntTy)
+        (typecheck (parse "let f = fun x y : int => x + 2y in f 1 2")));
+
+    "application convoluted" >::
+        (fun _ -> assert_equal ~printer:show_typ
+            (FuncTy( FuncTy(IntTy, IntTy), FuncTy(IntTy, IntTy) ))
+            (typecheck (parse "
+            let f = fun x : int => 2x in
+            fun f => (fun a : int => (f a))")));
+
+    "unit type" >::
+        (fun _ -> assert_equal ~printer:show_typ
+            (UnitTy)
+            (typecheck (parse "print_string \"hello\" ")));
+
+    "ill-typed" >::
+        (fun _ -> try
+            let _ = typecheck (parse "
+            let f = fun (x:int) => (fun (y:bool) => ()) in f 3 ()") in
+            assert_failure "'let f = fun (x:int) => (fun (y:bool) => ()) in f 3 ()' passed the typechecker"
+        with
+        | TypeError _ -> assert_bool "" true
+        | _ -> assert_failure "Unexpected error");
+
+    "apply inside lambda" >::
+        (fun _ -> try
+            let _ = typecheck (parse "fun x => x y") in
+            assert_failure "'fun x => x y' passed the typechecker"
+        with
+        | TypeError _ -> assert_bool "" true
+        | _ -> assert_failure "Unexpected error");
+
+    "match expression" >::
+    (fun _ -> assert_equal ~printer:show_typ
+        (IntTy)
+        (typecheck (parse "match p with | Pair => 0 ")));
   ]
 
 let interp_tests = "test suite for interpretor" >::: [
@@ -387,6 +418,7 @@ let tests = "test_suite for ocaml-lite" >::: [
     lex_tests;
     parse_expr_tests;
     parse_tests;
+    parse_typ_tests;
     (* type_tests; *)
     (* interpret_tests; *)
   ]
