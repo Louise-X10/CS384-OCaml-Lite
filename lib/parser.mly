@@ -130,42 +130,42 @@ param:
 
 expr:
   | Let; r = boption(Rec); x = Id; ps = param*; t = option(preceded(Colon, typ)); Eq; e1 = expr; In; e2 = expr; { LetExp(x, r, ps, t, e1, e2) }
-  | If; e1 = expr; Then; e2 = expr; Else; e3 = expr;                                          { IfExp(e1,e2,e3) }
-  | Fun; ps = param+; t = option(preceded(Colon, typ)); DoubleArrow; e = expr;                { Function(ps, t, e) }
-  | Match; e = expr; With; bs = match_branch+;                                                { MatchExp(e, bs) } 
-  | e1 = expr; op = binop; e2 = expr;                                                         { Binop(e1, op, e2)}
-  | op = unop; e = expr;                                                                      { Unop(op, e)}
-  | LParen; e = expr; Comma; es = separated_nonempty_list(Comma, expr); RParen;               { Tuple(e::es) }
-  | a = application;                                                                          { a }
+  | If; e1 = expr; Then; e2 = expr; Else; e3 = expr;                                                            { IfExp(e1,e2,e3) }
+  | Fun; ps = param+; t = option(preceded(Colon, typ)); DoubleArrow; e = expr;                                  { Function(ps, t, e) }
+  | Match; e = expr; With; bs = match_branch+;                                                                  { MatchExp(e, bs) } 
+  | e1 = expr; op = binop; e2 = expr;                                                                           { Binop(e1, op, e2)}
+  | op = unop; e = expr;                                                                                        { Unop(op, e)}
+  | LParen; e = expr; Comma; es = separated_nonempty_list(Comma, expr); RParen;                                 { Tuple(e::es) }
+  | a = application;                                                                                            { a }
 
-binop:
-  | Plus;                                                               { Add }
-  | Minus;                                                              { Sub }
-  | Times;                                                              { Mul }
-  | Divide;                                                             { Div }
-  | Mod;                                                                { Modulo }
-  | Lt;                                                                 { LessThan }
-  | Eq;                                                                 { Equal }
-  | Concat;                                                             { StrConcat }
-  | And;                                                                { LogicAnd }
-  | Or;                                                                 { LogicOr }
+%inline binop:
+  | Plus;       { Add }
+  | Minus;      { Sub }
+  | Times;      { Mul }
+  | Divide;     { Div }
+  | Mod;        { Modulo }
+  | Lt;         { LessThan }
+  | Eq;         { Equal }
+  | Concat;     { StrConcat }
+  | And;        { LogicAnd }
+  | Or;         { LogicOr }
 
-unop:
-  | Not;                                                                            { LogicNegate }
-  | Negate;                                                                         { IntNegate } 
+%inline unop:
+  | Not;        { LogicNegate }
+  | Negate;     { IntNegate } 
 
 application:
   | a = application; b = base; { App(a, b) }
   | b = base;                  { b }
 
 base:
-  | LParen; e = expr; RParen;                                                 { e }
-  | n = Int;                                                                  { CInt n }
-  | True;                                                                     { CBool true }
-  | False;                                                                    { CBool false }
-  | s = String;                                                               { CString s }
-  | x = Id;                                                                   { Var x }
-  | LParen; RParen;                                                           { Unit }
+  | LParen; e = expr; RParen;         { e }
+  | n = Int;                          { CInt n }
+  | True;                             { CBool true }
+  | False;                            { CBool false }
+  | s = String;                       { CString s }
+  | x = Id;                           { Var x }
+  | LParen; RParen;                   { Unit }
 
 match_branch: 
 | Pipe; x = Id; vs = option(pattern_vars); DoubleArrow; e = expr;   { MatchBr(x, vs, e) }
