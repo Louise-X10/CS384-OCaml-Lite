@@ -44,8 +44,16 @@ module TypeChecker = struct
   let initial_state = []
   let rec typecheck: expr -> typ ConstrState.m = function
 
-    | Binop(e1, op, e2) -> 
-      (match op with 
+    | Binop(e1, op, e2) -> typecheck_binop e1 op e2
+    | Unop(op, e) -> typecheck_unop op e
+    | CInt _ -> return IntTy
+    | CString _ -> return StringTy
+    | CBool _ -> return BoolTy
+    | Unit -> return UnitTy
+    | _ -> return UnitTy
+
+    and typecheck_binop (e1: expr) (op: binop) (e2: expr): typ ConstrState.m  = 
+      match op with 
       | LessThan -> 
         let t1, clst1 = run_state (typecheck e1) initial_state in
         let t2, clst2 = run_state (typecheck e2) initial_state in
@@ -71,9 +79,9 @@ module TypeChecker = struct
         let t2, clst2 = run_state (typecheck e2) initial_state in
         put ([(t1, IntTy);(t2, IntTy)] @ clst1 @ clst2) >>= fun _ ->
         return IntTy
-      )
-    | Unop(op, e) -> 
-      (match op with 
+
+    and typecheck_unop (op: unop) (e: expr): typ ConstrState.m  = 
+      match op with 
       | LogicNegate -> 
         let t, clst = run_state (typecheck e) initial_state in
         put ((t,BoolTy) :: clst) >>= fun _ ->
@@ -82,12 +90,7 @@ module TypeChecker = struct
         let t, clst = run_state (typecheck e) initial_state in
         put ((t,IntTy) :: clst) >>= fun _ ->
         return IntTy
-      )
-    | CInt _ -> return IntTy
-    | CString _ -> return StringTy
-    | CBool _ -> return BoolTy
-    | Unit -> return UnitTy
-    | _ -> return UnitTy
+
 end
 
 let typecheck (e: program) : typ = 
