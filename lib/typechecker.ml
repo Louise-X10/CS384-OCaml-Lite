@@ -42,10 +42,16 @@ module TypeChecker = struct
   open ConstrState
 
   let initial_state = []
+  let next_var = ref 0
+  let fresh_var (_ : unit) : typ =
+    let () = next_var := !next_var + 1 in
+    CustomTy ("t$" ^ string_of_int !next_var)
   let rec typecheck: expr -> typ ConstrState.m = function
 
     | Binop(e1, op, e2) -> typecheck_binop e1 op e2
     | Unop(op, e) -> typecheck_unop op e
+    | IfExp(e1, e2, e3) -> typecheck_ifexp e1 e2 e3
+    | App(e1, e2) -> typecheck_app e1 e2
     | CInt _ -> return IntTy
     | CString _ -> return StringTy
     | CBool _ -> return BoolTy
@@ -91,6 +97,20 @@ module TypeChecker = struct
         put ((t,IntTy) :: clst) >>= fun _ ->
         return IntTy
 
+    and typecheck_ifexp (e1: expr) (e2: expr) (e3: expr): typ ConstrState.m  = 
+      let t1, clst1 = run_state (typecheck e1) initial_state in
+      let t2, clst2 = run_state (typecheck e2) initial_state in
+      let t3, clst3 = run_state (typecheck e3) initial_state in
+        put ([(t1,BoolTy); (t2,t3)] @ clst1 @ clst2 @ clst3) >>= fun _ ->
+        return t2
+
+    and typecheck_app (e1: expr) (e2: expr): typ ConstrState.m  = 
+      let t1, clst1 = run_state (typecheck e1) initial_state in
+      let t2, clst2 = run_state (typecheck e2) initial_state in
+      let t3 = fresh_var () in 
+        put ([(t1,FuncTy (t2, t3))] @ clst1 @ clst2) >>= fun _ ->
+        return t3
+    
 end
 
 let typecheck (e: program) : typ = 
