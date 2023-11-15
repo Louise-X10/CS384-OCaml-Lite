@@ -38,10 +38,11 @@ end
 
 module TypeChecker = struct
   type constr = typ * typ
-  module ConstrState = State(struct type state = constr list end)
+  type constr_state = {clst: constr list; context: (string*typ) list}
+  module ConstrState = State(struct type state = constr_state end)
   open ConstrState
 
-  let initial_state = []
+  let initial_state = {clst = []; context = []}
   let next_var = ref 0
   let fresh_var (_ : unit) : typ =
     let () = next_var := !next_var + 1 in
@@ -56,59 +57,71 @@ module TypeChecker = struct
     | CString _ -> return StringTy
     | CBool _ -> return BoolTy
     | Unit -> return UnitTy
+    | Var s -> get >>= fun st ->
+      let t = fresh_var () in 
+      put {clst = st.clst; context = [(s, t)]} >>= fun _ ->
+      return t  
     | _ -> return UnitTy
 
     and typecheck_binop (e1: expr) (op: binop) (e2: expr): typ ConstrState.m  = 
       match op with 
       | LessThan -> 
-        let t1, clst1 = run_state (typecheck e1) initial_state in
-        let t2, clst2 = run_state (typecheck e2) initial_state in
-        put ([(t1, IntTy);(t2, IntTy)] @ clst1 @ clst2) >>= fun _ ->
+        let t1, st1 = run_state (typecheck e1) initial_state in
+        let t2, st2 = run_state (typecheck e2) initial_state in
+        put {clst = [(t1, IntTy);(t2, IntTy)] @ st1.clst @ st2.clst ;
+            context = []} >>= fun _ ->
         return BoolTy
       | Equal -> 
-        let t1, clst1 = run_state (typecheck e1) initial_state in
-        let t2, clst2 = run_state (typecheck e2) initial_state in
-        put ([(t1, t2)] @ clst1 @ clst2) >>= fun _ ->
+        let t1, st1 = run_state (typecheck e1) initial_state in
+        let t2, st2 = run_state (typecheck e2) initial_state in
+        put {clst = [(t1, t2)] @ st1.clst @ st2.clst ;
+        context = []} >>= fun _ ->
         return BoolTy
       | StrConcat -> 
-        let t1, clst1 = run_state (typecheck e1) initial_state in
-        let t2, clst2 = run_state (typecheck e2) initial_state in
-        put ([(t1, StringTy);(t2, StringTy)] @ clst1 @ clst2) >>= fun _ ->
+        let t1, st1 = run_state (typecheck e1) initial_state in
+        let t2, st2 = run_state (typecheck e2) initial_state in
+        put {clst = [(t1, StringTy);(t2, StringTy)] @ st1.clst @ st2.clst ;
+            context = []} >>= fun _ ->
         return StringTy
       | LogicAnd | LogicOr -> 
-        let t1, clst1 = run_state (typecheck e1) initial_state in
-        let t2, clst2 = run_state (typecheck e2) initial_state in
-        put ([(t1, BoolTy);(t2, BoolTy)] @ clst1 @ clst2) >>= fun _ ->
+        let t1, st1 = run_state (typecheck e1) initial_state in
+        let t2, st2 = run_state (typecheck e2) initial_state in
+        put {clst = [(t1, BoolTy);(t2, BoolTy)] @ st1.clst @ st2.clst ;
+            context = []} >>= fun _ ->
         return BoolTy
       | _ -> 
-        let t1, clst1 = run_state (typecheck e1) initial_state in
-        let t2, clst2 = run_state (typecheck e2) initial_state in
-        put ([(t1, IntTy);(t2, IntTy)] @ clst1 @ clst2) >>= fun _ ->
+        let t1, st1 = run_state (typecheck e1) initial_state in
+        let t2, st2 = run_state (typecheck e2) initial_state in
+        put {clst = [(t1, IntTy);(t2, IntTy)] @ st1.clst @ st2.clst ;
+            context = []} >>= fun _ ->
         return IntTy
 
     and typecheck_unop (op: unop) (e: expr): typ ConstrState.m  = 
       match op with 
       | LogicNegate -> 
-        let t, clst = run_state (typecheck e) initial_state in
-        put ((t,BoolTy) :: clst) >>= fun _ ->
+        let t, st = run_state (typecheck e) initial_state in
+        put {clst = (t,BoolTy) :: st.clst ;
+            context = []} >>= fun _ ->
         return BoolTy
       | IntNegate -> 
-        let t, clst = run_state (typecheck e) initial_state in
-        put ((t,IntTy) :: clst) >>= fun _ ->
+        let t, st = run_state (typecheck e) initial_state in
+        put {clst = (t,IntTy) :: st.clst ;
+            context = []} >>= fun _ ->
         return IntTy
-
     and typecheck_ifexp (e1: expr) (e2: expr) (e3: expr): typ ConstrState.m  = 
-      let t1, clst1 = run_state (typecheck e1) initial_state in
-      let t2, clst2 = run_state (typecheck e2) initial_state in
-      let t3, clst3 = run_state (typecheck e3) initial_state in
-        put ([(t1,BoolTy); (t2,t3)] @ clst1 @ clst2 @ clst3) >>= fun _ ->
+      let t1, st1 = run_state (typecheck e1) initial_state in
+      let t2, st2 = run_state (typecheck e2) initial_state in
+      let t3, st3 = run_state (typecheck e3) initial_state in
+      put {clst = [(t1,BoolTy); (t2,t3)] @ st1.clst @ st2.clst @ st3.clst ;
+            context = []} >>= fun _ ->
         return t2
 
     and typecheck_app (e1: expr) (e2: expr): typ ConstrState.m  = 
-      let t1, clst1 = run_state (typecheck e1) initial_state in
-      let t2, clst2 = run_state (typecheck e2) initial_state in
+      let t1, st1 = run_state (typecheck e1) initial_state in
+      let t2, st2 = run_state (typecheck e2) initial_state in
       let t3 = fresh_var () in 
-        put ([(t1,FuncTy (t2, t3))] @ clst1 @ clst2) >>= fun _ ->
+      put {clst = [(t1,FuncTy (t2, t3))] @ st1.clst @ st2.clst;
+            context = []} >>= fun _ ->
         return t3
     
 end
