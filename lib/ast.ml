@@ -57,6 +57,8 @@ and typ =
   | FuncTy of typ * typ 
   | TupleTy of typ list
   | CustomTy of string
+  | VarTy of int 
+  | ForallTy of int * typ (* forall t0. t0 -> t0 is Forall (0, FuncTy(Var 0, Var 0)) *)
 [@@deriving show]
 
 type program = binding list
