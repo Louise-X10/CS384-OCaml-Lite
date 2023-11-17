@@ -51,9 +51,15 @@ module TypeChecker = struct
 
   (* Helper: Merge multiple context lists without duplicates *)
   let merge_context (lst_of_context: context list list)  = 
-  let comp = (fun (x, _) (y, _) -> String.compare x y) in
+    (* let comp = (fun (x, _) (y, _) -> String.compare x y) in *)
     let contexts = List.fold_left (@) [] lst_of_context in 
-    List.sort_uniq comp contexts
+    List.sort_uniq compare contexts
+
+  (* Helper: Merge multiple constraint lists without duplicates *)
+  let merge_constr (lst_of_constr: constr list list)  = 
+    (* let comp = (fun (x, x') (y, y') -> String.compare x y) in *)
+    let constraints = List.fold_left (@) [] lst_of_constr in 
+    List.sort_uniq compare constraints
 
   (* Helper: Get initial state from param list. 
     See (x: int), return {clst = [(t0, int)]; context = [(x, t0)]}
@@ -90,9 +96,8 @@ module TypeChecker = struct
     | [] -> failwith "no function params"
     | (_, ti)::[]->  FuncTy(ti, ret_t)
     | (_, t1) :: tail -> FuncTy(t1, get_function_type tail ret_t)
-
-  let empty_state = {clst = []; context = []}
   let rec typeof (e:expr) :typ = 
+    let empty_state = {clst = []; context = []} in
     let st = typecheck e in 
     (* let st = unify st in *)
     eval_state st empty_state
@@ -101,6 +106,7 @@ module TypeChecker = struct
 
     | Binop(e1, op, e2) -> typecheck_binop e1 op e2
     | Unop(op, e) -> typecheck_unop op e
+    | Tuple elst -> typecheck_tuple elst
     | IfExp(e1, e2, e3) -> typecheck_ifexp e1 e2 e3
     | LetExp(x, b, plst, t, e1, e2) -> typecheck_letexp x b plst t e1 e2
     | MatchExp(e, mlst) -> typecheck_matchexp e mlst
@@ -173,6 +179,25 @@ module TypeChecker = struct
         put {clst = (t,IntTy) :: st.clst ;
             context = st.context} >>= fun _ ->
         return IntTy
+    and typecheck_tuple (elst: expr list) : typ ConstrState.m =
+      get >>= fun initial_state ->
+      (* Helper: return list of types, and new constraint *)
+      let rec get_typs_constr (elst: expr list): typ list * constr list = 
+        (match elst with 
+        | e1 :: e2 :: [] -> 
+          let t1, st1 = run_state (typecheck e1) initial_state in
+          let t2, st2 = run_state (typecheck e2) initial_state in
+          [t1; t2] , merge_constr [st1.clst; st2.clst]
+        | e1 :: tail -> 
+          let t1, st1 = run_state (typecheck e1) initial_state in
+          let typs, new_constr = get_typs_constr tail in
+          t1 :: typs, merge_constr [st1.clst; new_constr]
+        | _ -> failwith "not enough tuple elements"
+        ) in
+      let tlst, clst = get_typs_constr elst in 
+      put {clst = merge_constr [clst; initial_state.clst];
+          context = initial_state.context} >>= fun _ ->
+        return (TupleTy tlst)
     and typecheck_ifexp (e1: expr) (e2: expr) (e3: expr): typ ConstrState.m  = 
       get >>= fun initial_state ->
       let t1, st1 = run_state (typecheck e1) initial_state in
