@@ -90,6 +90,20 @@ module TypeChecker = struct
       let context = (s, ti)::context in 
       clst, context
 
+  (* Helper: Get context from pattern vars *)
+  let rec get_pvar_context (plst_opt: pattern_vars option): context list = 
+    match plst_opt with 
+    | None -> []
+    | Some plst ->
+      let string_to_context (s: string) : context = 
+        let t = fresh_var () in (s, t)
+      in List.map string_to_context plst
+
+  (* Helper: Get list of constaints that each type of subexpr must match *)
+  let get_subexpr_clst (tlst: typ list): constr list = 
+    let lst1 = List.rev (List.tl (List.rev tlst)) in 
+    let lst2 = List.tl tlst in 
+    List.map2 (fun t1 t2 -> (t1, t2)) lst1 lst2
   (* Helper: Get function type from param context *)
   let rec get_function_type (context: context list) (ret_t: typ): typ = 
     match context with 
@@ -226,8 +240,40 @@ module TypeChecker = struct
       put {clst = st.clst; context = initial_state.context} >>= fun _ ->
         return func_t
 
-    and typecheck_matchexp (e: expr) (mlst: matchbranch list) = 
-      failwith "undefined"
+    (* type check match expr = t, use updated context to evaluate branches  *)
+    (* For each branch, add constraint type of pattern constructor p_type ~ t.
+      Add constraint for pattern vars. 
+      Add pattern vars to context and check subexpr, return type of subexpr *)
+    (* Add constraint that all subexpr types match *)
+    and typecheck_matchexp (e: expr) (brlst: matchbranch list) = 
+      get >>= fun initial_state ->
+      let t, match_state = run_state (typecheck e) initial_state in 
+      let typecheck_matchbr (br: matchbranch): typ ConstrState.m = 
+        (match br with | MatchBr (s, pvars, e) -> 
+        get >>= fun init_state ->
+          let p_type = List.assoc s init_state.context in
+          let new_constraint = (p_type, t) in 
+          (* create pvar context: give each pvar a new type variable *)
+          let pvar_context = get_pvar_context pvars in 
+          (* !!add constraint for pvar typ ~ constructor arg typ *)
+  
+          (* evaluate subexpr in pvar context to get return type*)
+          let branch_state = {clst = match_state.clst; 
+                              context = merge_context [pvar_context; match_state.context]} in 
+          let ret_t, ret_st = run_state (typecheck e) branch_state in 
+          (* return ret_typ of subexpr, restore initial context, update constraints *)
+          put {clst = merge_constr [ [new_constraint]; ret_st.clst];
+              context = init_state.context} >>= fun _ ->
+          return  ret_t) in
+      let st_lst = (List.map typecheck_matchbr brlst) in 
+      let subexpr_tslt = (List.map (fun st -> eval_state st initial_state) st_lst) in 
+      let list_of_clst = (List.map (fun st -> 
+                            let res_st = exec_state st initial_state in res_st.clst) st_lst) in
+      let subexpr_clst = get_subexpr_clst subexpr_tslt in 
+      put {clst = merge_constr (subexpr_clst :: list_of_clst);
+          context = initial_state.context} >>= fun _ -> 
+      return (List.hd subexpr_tslt)
+
 
     and typecheck_letexp (x: string) (b:bool) (plst: param list) (t:typ option) (e1: expr) (e2:expr): typ ConstrState.m =
       failwith "undefined"
