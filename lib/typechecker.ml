@@ -56,7 +56,7 @@ module TypeChecker = struct
     | FuncTy(arg, body) -> 
       if t1 == arg then true else occurs_check t1 body
     | TupleTy tlst -> List.exists (fun t -> occurs_check t1 t) tlst
-    | CustomTy _ as t -> if t1 == t then true else false
+    | UserTy _ as t -> if t1 == t then true else false
     | _ -> false
 
   (* Helper: apply sub (i.e. map any occurance of t1 to t2) in target_t*)
@@ -67,7 +67,7 @@ module TypeChecker = struct
       let new_body = sub_type subst body in
       FuncTy(new_arg, new_body)
     | TupleTy tlst -> TupleTy (List.map (fun t -> sub_type subst t) tlst)
-    | CustomTy _ as t -> if t == fst subst then snd subst else t
+    | UserTy _ as t -> if t == fst subst then snd subst else t
     | t -> t
 
   (* Helper: apply single sub to single constraint *)
@@ -363,7 +363,6 @@ module TypeChecker = struct
       put {clst = merge_clst (subexpr_clst :: list_of_clst);
           context = initial_state.context} >>= fun _ -> 
       return (List.hd subexpr_tslt)
-
 
     and typecheck_letexp (x: string) (b:bool) (plst: param list) (t:typ option) (e1: expr) (e2:expr): typ ConstrState.m =
       failwith "undefined"

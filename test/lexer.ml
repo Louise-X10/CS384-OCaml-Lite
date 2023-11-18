@@ -250,7 +250,7 @@ let type_expr_tests = "test suite for typechecker on expressions" >::: [
         (IntTy)
         (let e = parse_expr  "match p with | Pair (x, y) => x + y" in
         let st = typecheck e in
-        eval_state st  {clst = []; context = [("Pair", FuncTy(IntTy, FuncTy(IntTy, CustomTy "pairing_type")))]}
+        eval_state st  {clst = []; context = [("Pair", FuncTy(IntTy, FuncTy(IntTy, UserTy "pairing_type")))]}
         ));
 ]
 (* let type_tests = "test suite for typechecker" >::: [
@@ -402,7 +402,7 @@ let interp_tests = "test suite for interpretor" >::: [
   (fun _ -> assert_equal
       ([
         TypeB("pairing", ["Pair", Some (TupleTy [IntTy; IntTy])]),
-        LetB("p", [], Some (CustomTy "pairing"), App( Var "Pair", Tup ([CInt 1, CInt 2]))),
+        LetB("p", [], Some (UserTy "pairing"), App( Var "Pair", Tup ([CInt 1, CInt 2]))),
         LetB("result", [], Some IntTy, CInt 3)
       ])
       (interpret  "
@@ -414,7 +414,7 @@ let interp_tests = "test suite for interpretor" >::: [
 (fun _ -> assert_equal
     ([
     TypeB("pairing", ["Pair", Some (TupleTy [IntTy; IntTy])]),
-    LetB("p", [], Some (CustomTy "pairing"), App( Var "Pair", Tup ([CInt 1, CInt 2]))),
+    LetB("p", [], Some (UserTy "pairing"), App( Var "Pair", Tup ([CInt 1, CInt 2]))),
     LetB("result", [], Some IntTy, CInt 1)
     ])
     (interpret  "

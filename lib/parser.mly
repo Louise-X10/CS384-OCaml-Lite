@@ -209,7 +209,7 @@ typ_base:
   | TBool;                      { BoolTy }
   | TString;                    { StringTy }
   | TUnit;                      { UnitTy }
-  | x = Id;                     { CustomTy x }
+  | x = Id;                     { UserTy x }
   | LParen; t = typ; RParen;    { t }
 
 typ_tuple:
