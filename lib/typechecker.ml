@@ -232,6 +232,7 @@ module TypeChecker = struct
     | Tuple elst -> typecheck_tuple elst
     | IfExp(e1, e2, e3) -> typecheck_ifexp e1 e2 e3
     | LetExp(x, b, plst, t, e1, e2) -> typecheck_letexp x b plst t e1 e2
+    | LetB(x, b, plst, t, e1) -> typecheck_letbinding x b plst t e1
     | MatchExp(e, mlst) -> typecheck_matchexp e mlst
     | App(e1, e2) -> typecheck_app e1 e2
     | Function(plst, t, e) -> typecheck_function plst t e
@@ -392,15 +393,37 @@ module TypeChecker = struct
        return new constraint list with original context *)
     and typecheck_letexp (x: string) (b:bool) (plst: param list) (t:typ option) (e1: expr) (e2:expr): typ ConstrState.m =
       get >>= fun initial_state -> 
-        let x_type, e1_state = run_state (typecheck_function plst t e1) initial_state in 
+        (* If recursive, then give x a new type var when checking e1 *)
+        let e1_initial_state = 
+          (if b == true 
+            then {clst = initial_state.clst; 
+                  context = merge_context[[(x, fresh_var ())]; initial_state.context]} 
+            else initial_state) in
+        let x_type, e1_state = run_state (typecheck_function plst t e1) e1_initial_state in 
         let x_type = unify e1_state.clst x_type in 
         let gen_x_type = generalize e1_state.context x_type in
-        (*  *)
+        (* Evaluate e2 with generalized context *)
         let e2_state = {clst = e1_state.clst; context = merge_context [[(x, gen_x_type)]; e1_state.context] } in 
         let ret_t, ret_state = run_state (typecheck e2) e2_state in 
         put { clst = ret_state.clst; 
               context = initial_state.context } >>= fun _ ->
         return ret_t
+
+    and typecheck_letbinding (x: string) (b:bool) (plst: param list) (t:typ option) (e1: expr): typ ConstrState.m =
+      get >>= fun initial_state -> 
+        (* If recursive, then give x a new type var when checking e1 *)
+        let e1_initial_state = 
+          (if b == true 
+            then {clst = initial_state.clst; 
+                  context = merge_context[[(x, fresh_var ())]; initial_state.context]} 
+            else initial_state) in
+        let x_type, e1_state = run_state (typecheck_function plst t e1) e1_initial_state in 
+        let x_type = unify e1_state.clst x_type in 
+        let gen_x_type = generalize e1_state.context x_type in
+        (* Add generalized type to context *)
+        put { clst = e1_state.clst; 
+              context = merge_context [[(x, gen_x_type)]; initial_state.context] } >>= fun _ -> 
+        return gen_x_type
 
     and generalize (context_lst: context list) (x_type: typ) : typ = 
       (* Get all varty free in the x_type constraint *)
