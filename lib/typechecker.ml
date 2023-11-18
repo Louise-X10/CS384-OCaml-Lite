@@ -204,12 +204,21 @@ module TypeChecker = struct
     let lst1 = List.rev (List.tl (List.rev tlst)) in 
     let lst2 = List.tl tlst in 
     List.map2 (fun t1 t2 -> (t1, t2)) lst1 lst2
+
   (* Helper: Get function type from param context *)
   let rec get_function_type (context: context list) (ret_t: typ): typ = 
     match context with 
     | [] -> raise (TypeError ("Need at least one function parameter"))
     | (_, ti)::[]->  FuncTy(ti, ret_t)
     | (_, t1) :: tail -> FuncTy(t1, get_function_type tail ret_t)
+
+  (* Helper: Get typ_binding type from 
+     chaining list of constructor types into FuncTy *)
+  let rec chain_tb_type (tlst: typ list) (def_t: typ): typ = 
+    match tlst with 
+    | [] -> raise (TypeError ("Need at least one constructor variable"))
+    | t :: [] -> FuncTy(t, def_t)
+    | t :: tail -> FuncTy(t, chain_tb_type tail def_t)
   
   (* Helper: Get constraint if user provides return type annotation *)
   let get_ret_constraint (t: typ option) (ret_t: typ): constr list = 
@@ -445,7 +454,26 @@ module TypeChecker = struct
       List.fold_left helper x_type varty_lst 
 
     and typecheck_typebinding (s: string) (tblst: typ_binding list): typ ConstrState.m =
-      failwith "undefined"
+      get >>= fun initial_state -> 
+        let def_t = UserTy s in 
+        let context_lst = List.map (fun tb -> get_tb_type tb def_t) tblst in 
+        put {clst = initial_state.clst; context = merge_context[initial_state.context; context_lst]} >>= fun _ ->
+          return def_t
+
+    and get_tb_type (tb: typ_binding) (def_t: typ): context = 
+      let constructor = fst tb in 
+      match snd tb with 
+      | None -> (constructor, def_t)
+      | Some t -> 
+        let tb_type = (
+          match t with 
+          | TupleTy tlst -> chain_tb_type tlst def_t
+          | _ -> raise (TypeError ("Type Binding's Constructor variable types should be defined like tuples "))
+        ) in 
+        (constructor, tb_type)
+      
+
+
 end
 
 let typecheck (e: program) : typ = 
