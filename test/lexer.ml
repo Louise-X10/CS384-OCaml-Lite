@@ -238,7 +238,20 @@ let type_expr_tests = "test suite for typechecker on expressions" >::: [
     "function expression, no type" >::
     (fun _ -> assert_equal
         (FuncTy(IntTy, FuncTy(IntTy, IntTy)))
+        (typecheck_expr (parse_expr  "fun x y => x + 2 * y"))); 
+
+    "function expression, with type" >::
+    (fun _ -> assert_equal
+        (FuncTy(IntTy, FuncTy(IntTy, IntTy)))
         (typecheck_expr (parse_expr  "fun x y : int => x + 2 * y"))); 
+
+    "function expression, with incorrect type" >::
+    (fun _ -> try
+        let _ = typecheck_expr (parse_expr  "fun x y : bool => x + 2 * y") in
+        assert_failure "'fun x y : bool => x + 2 * y' passed the typechecker"
+    with
+    | TypeError _ -> assert_bool "" true
+    | _ -> assert_failure "Unexpected error");
     
     "add function association" >::
     (fun _ -> assert_equal ~printer:show_typ

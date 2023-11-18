@@ -86,13 +86,13 @@ module TypeChecker = struct
       if t1 <> t2 then [], [(VarTy t1, VarTy t2)]
       else  [], []
     | (VarTy _ as t1), t2 | t2, (VarTy _ as t1) -> 
-      if occurs_check t1 t2 == true then failwith "Infinite unification" else
+      if occurs_check t1 t2 == true then raise (TypeError ("Infinite unification")) else
       [], [(t1, t2)]
     | FuncTy (arg1, body1), FuncTy (arg2, body2) -> 
       [(arg1, arg2); (body1, body2)], []
     | TupleTy tls1, TupleTy tls2 -> 
       List.combine tls1 tls2, []
-    | t1, t2 -> if t1 <> t2 then failwith "Unification failed" else [], []
+    | t1, t2 -> if t1 <> t2 then raise (TypeError ("Unification failed")) else [], []
   
   (* Helper: unify all constraints to build sub list *)
   let rec unify_multiple_constr (clst: constr list) (sub: sub list): constr list * sub list = 
@@ -126,7 +126,7 @@ module TypeChecker = struct
   (* Unify constraint list to give actual return type *)
   let unify (clst: constr list) (t: typ): typ = 
     let res_clst, res_slst = unify_multiple_constr clst [] in 
-    let _ = match res_clst with | [] -> res_clst | _ -> failwith "Unresolved constraints!" in 
+    let _ = match res_clst with | [] -> res_clst | _ ->  raise (TypeError ("Unresolved constraints remain!")) in 
     let ret_t = apply_subst res_slst t in 
     ret_t
 
@@ -148,7 +148,7 @@ module TypeChecker = struct
   *)
   let rec get_param_state (plst: param list): constr list * context list = 
     match plst with 
-    | [] -> failwith "no params"
+    | [] -> raise (TypeError ("Need at least one function parameters"))
     | {name = s; p_type = None }:: [] -> 
       let ti = fresh_var () in 
       let clst = [] in 
@@ -192,10 +192,16 @@ module TypeChecker = struct
   (* Helper: Get function type from param context *)
   let rec get_function_type (context: context list) (ret_t: typ): typ = 
     match context with 
-    | [] -> failwith "no function params"
+    | [] -> raise (TypeError ("Need at least one function parameter"))
     | (_, ti)::[]->  FuncTy(ti, ret_t)
     | (_, t1) :: tail -> FuncTy(t1, get_function_type tail ret_t)
   
+  (* Helper: Get constraint if user provides return type annotation *)
+    let get_ret_constraint (t: typ option) (ret_t: typ): constr list = 
+      match t with 
+      | None -> []
+      | Some t -> [(ret_t, t)]
+
   let empty_state = {clst = []; context = []} (*!! delete this later *)
   let rec typeof (e:expr) :typ = 
     let empty_state = {clst = []; context = []} in
@@ -294,7 +300,7 @@ module TypeChecker = struct
           let t1, st1 = run_state (typecheck e1) initial_state in
           let typs, new_constr = get_typs_constr tail in
           t1 :: typs, merge_clst [st1.clst; new_constr]
-        | _ -> failwith "not enough tuple elements"
+        | _ -> raise (TypeError ("Need more than one tuple elements"))
         ) in
       let tlst, clst = get_typs_constr elst in 
       put {clst = merge_clst [clst; initial_state.clst];
@@ -323,8 +329,10 @@ module TypeChecker = struct
       let clst, context = get_param_state plst in 
       let function_state = {clst = initial_state.clst @ clst; context = merge_context [initial_state.context; context]} in
       let ret_t, st = run_state (typecheck e) function_state in
+      let ret_constraint = get_ret_constraint t ret_t in 
       let func_t = get_function_type context ret_t in
-      put {clst = st.clst; context = initial_state.context} >>= fun _ ->
+      put {clst = merge_clst [ret_constraint; st.clst]; 
+          context = initial_state.context} >>= fun _ ->
         return func_t
 
     (* type check match expr = t, use updated context to evaluate branches??  *)
