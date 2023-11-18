@@ -40,6 +40,7 @@ module TypeChecker = struct
   type constr = typ * typ (* e.g. (t0, int) *)
   type context = string * typ (* e.g. (x, t0) means x bound to t0 *)
   type constr_state = {clst: constr list; context: context list}
+  let empty_state = {clst = []; context = []}
   module ConstrState = State(struct type state = constr_state end)
   type sub = typ * typ (* e.g. (t0, int) means map t0 to int *)
   open ConstrState
@@ -225,17 +226,13 @@ module TypeChecker = struct
     match t with 
     | None -> []
     | Some t -> [(ret_t, t)]
-
-  let empty_state = {clst = []; context = []} (*!! delete this later *)
   let rec typeof_binding (e:binding) :typ = 
-    let empty_state = {clst = []; context = []} in
     let st = typecheck_binding e in 
     let ret_t, ret_st = run_state st empty_state in 
     let ret_t = unify ret_st.clst ret_t in 
     ret_t
 
   and typeof_expr (e:expr) :typ = 
-    let empty_state = {clst = []; context = []} in
     let st = typecheck_expr e in 
     let ret_t, ret_st = run_state st empty_state in 
     let ret_t = unify ret_st.clst ret_t in 
@@ -265,10 +262,9 @@ module TypeChecker = struct
       let s_type = 
       (match ty with | Some t -> t | None -> fresh_var ()) in 
       let new_context = 
-      (match ty with | Some t -> st.context | None -> (s, s_type) :: st.context) in 
+      (match ty with | Some _ -> st.context | None -> (s, s_type) :: st.context) in 
       put {clst = st.clst; context = new_context } >>= fun _ ->
       return s_type
-    | _ -> return UnitTy
 
     and typecheck_binop (e1: expr) (op: binop) (e2: expr): typ ConstrState.m  = 
       match op with 
@@ -471,8 +467,6 @@ module TypeChecker = struct
           | _ -> raise (TypeError ("Type Binding's Constructor variable types should be defined like tuples "))
         ) in 
         (constructor, tb_type)
-      
-
 
 end
 
