@@ -50,6 +50,21 @@ module TypeChecker = struct
     let () = next_var := !next_var + 1 in
     VarTy (!next_var)
 
+  (* Helper: get list of free type variables in given t *)
+  let rec get_varty (t: typ): int list = 
+    match t with 
+    | VarTy i -> [i]
+    | FuncTy(arg, body) -> (get_varty arg) @ (get_varty body)
+    | TupleTy tlst -> List.fold_left (@) [] (List.map (fun t -> get_varty t) tlst)
+    | _ -> []
+
+  (* Helper: only keep type variables that are not free in context *)
+  let rec remove_varty (varty_lst: int list) (context_lst: context list): int list = 
+    let _, typ_lst = List.split context_lst in 
+    (* If varty is not in typ_lst, then return true *)
+    let vartyFree (varty): bool = not (List.mem (VarTy varty) typ_lst) in 
+      List.find_all vartyFree varty_lst
+
   (* Check if t1 occurs in t2 *)
   let rec occurs_check (t1: typ) (t2: typ): bool = 
     match t2 with 
@@ -197,10 +212,10 @@ module TypeChecker = struct
     | (_, t1) :: tail -> FuncTy(t1, get_function_type tail ret_t)
   
   (* Helper: Get constraint if user provides return type annotation *)
-    let get_ret_constraint (t: typ option) (ret_t: typ): constr list = 
-      match t with 
-      | None -> []
-      | Some t -> [(ret_t, t)]
+  let get_ret_constraint (t: typ option) (ret_t: typ): constr list = 
+    match t with 
+    | None -> []
+    | Some t -> [(ret_t, t)]
 
   let empty_state = {clst = []; context = []} (*!! delete this later *)
   let rec typeof (e:expr) :typ = 
@@ -371,12 +386,30 @@ module TypeChecker = struct
       put {clst = merge_clst (subexpr_clst :: list_of_clst);
           context = initial_state.context} >>= fun _ -> 
       return (List.hd subexpr_tslt)
-
+    
+    (* Evaluate type of e1, unify constraints, generalize, 
+       add x ~ generalized type to context when checking e2, 
+       return new constraint list with original context *)
     and typecheck_letexp (x: string) (b:bool) (plst: param list) (t:typ option) (e1: expr) (e2:expr): typ ConstrState.m =
-      failwith "undefined"
+      get >>= fun initial_state -> 
+        let x_type, e1_state = run_state (typecheck_function plst t e1) initial_state in 
+        let x_type = unify e1_state.clst x_type in 
+        let gen_x_type = generalize e1_state.context x_type in
+        (*  *)
+        let e2_state = {clst = e1_state.clst; context = merge_context [[(x, gen_x_type)]; e1_state.context] } in 
+        let ret_t, ret_state = run_state (typecheck e2) e2_state in 
+        put { clst = ret_state.clst; 
+              context = initial_state.context } >>= fun _ ->
+        return ret_t
 
-    and generalize (x: string) (st: typ ConstrState.m) : typ ConstrState.m = 
-      failwith "undefined"
+    and generalize (context_lst: context list) (x_type: typ) : typ = 
+      (* Get all varty free in the x_type constraint *)
+      let varty_lst = get_varty x_type in 
+      (* Remove varty that are not free in context *)
+      let varty_lst = remove_varty varty_lst context_lst in 
+      (* Apply Forall to each free var *)
+      let helper (x_type: typ) (varty: int) : typ = ForallTy(varty, x_type) in 
+      List.fold_left helper x_type varty_lst 
 end
 
 let typecheck (e: program) : typ = 
