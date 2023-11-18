@@ -2,7 +2,9 @@ open OUnit2
 open Ocaml_lite.Lexer
 open Ocaml_lite.Ast
 open Ocaml_lite.Parser
-(* open Ocaml_lite.Typechecker *)
+open Ocaml_lite.Typechecker
+open TypeChecker
+open ConstrState
 
 let lex_tests = "test suite for tokenize" >::: [
     "random code" >::
@@ -108,7 +110,7 @@ let parse_expr_tests = "test suite for parser (expr helper)" >::: [
             MatchBr("Pair", None, Var "p")]))
         (parse_expr  "match p with | Pair => p"));
 
-    "match expression (nested expr)" >::
+    "match expression (nested expr, pattern vars)" >::
     (fun _ -> assert_equal
         (MatchExp(Var "p", [
             MatchBr("Pair", Some ["x"; "y"], Binop(Var "x", Add, Var "y"))]))
@@ -207,6 +209,50 @@ let parse_typ_tests = "test suite for parser (top level bindings)" >::: [
         (parse_type "int * int -> int * int"));
 ]
 
+let type_expr_tests = "test suite for typechecker on expressions" >::: [
+    "add function" >::
+    (fun _ -> assert_equal ~printer:show_typ
+        (IntTy)
+        (typecheck_expr (parse_expr "1+2")));
+
+    "if expression (simple)" >::
+    (fun _ -> assert_equal
+        (BoolTy)
+        (typecheck_expr (parse_expr "if 2 < 3 then true else false")));
+
+    "tuple type" >::
+    (fun _ -> assert_equal ~printer:show_typ
+        (TupleTy ([IntTy; IntTy; IntTy]))
+        (typecheck_expr (parse_expr "(1, 2, 3)")));
+
+    "nested tuple type (left)" >::
+    (fun _ -> assert_equal ~printer:show_typ
+        (TupleTy [ TupleTy [IntTy; IntTy]; IntTy])
+        (typecheck_expr (parse_expr "((1, 2), 3)")));
+
+    "nested tuple type (right)" >::
+    (fun _ -> assert_equal ~printer:show_typ
+        (TupleTy [ IntTy; TupleTy [IntTy; IntTy]])
+        (typecheck_expr (parse_expr "(1, (2, 3))")));
+
+    "function expression, no type" >::
+    (fun _ -> assert_equal
+        (FuncTy(IntTy, FuncTy(IntTy, IntTy)))
+        (typecheck_expr (parse_expr  "fun x y : int => x + 2 * y"))); 
+    
+    "add function association" >::
+    (fun _ -> assert_equal ~printer:show_typ
+        (FuncTy (IntTy, FuncTy(IntTy, IntTy)))
+        (typecheck_expr (parse_expr "fun x y : int => x + y")));
+
+    "match expr (nested expr, pattern vars)" >::
+    (fun _ -> assert_equal ~printer:show_typ
+        (IntTy)
+        (let e = parse_expr  "match p with | Pair (x, y) => x + y" in
+        let st = typecheck e in
+        eval_state st  {clst = []; context = [("Pair", FuncTy(IntTy, FuncTy(IntTy, CustomTy "pairing_type")))]}
+        ));
+]
 (* let type_tests = "test suite for typechecker" >::: [
 
     "built-in int_of_string" >::
@@ -224,30 +270,10 @@ let parse_typ_tests = "test suite for parser (top level bindings)" >::: [
         (FuncTy (StringTy, UnitTy))
         (typecheck (parse "print_string")));
 
-    "tuple type" >::
-    (fun _ -> assert_equal ~printer:show_typ
-        (TupleTy [IntTy; IntTy; IntTy])
-        (typecheck (parse "(1, 2, 3)")));
-
-    "nested tuple type (left)" >::
-    (fun _ -> assert_equal ~printer:show_typ
-        (TupleTy [ TupleTy [IntTy; IntTy]; IntTy])
-        (typecheck (parse "((1, 2), 3)")));
-
-    "nested tuple type (right)" >::
-    (fun _ -> assert_equal ~printer:show_typ
-        (TupleTy [ IntTy; TupleTy [IntTy; IntTy]])
-        (typecheck (parse "(1, (2, 3))")));
-
     "id function" >::
     (fun _ -> assert_equal ~printer:show_typ
         (FuncTy (IntTy, IntTy))
         (typecheck (parse "fun x : int => x")));
-
-    "add function" >::
-    (fun _ -> assert_equal ~printer:show_typ
-        (FuncTy (TupleTy [IntTy; IntTy], IntTy))
-        (typecheck (parse "fun x y : int => x + y")));
     
     "function with tuple type" >::
     (fun _ -> assert_equal ~printer:show_typ
@@ -291,7 +317,7 @@ let parse_typ_tests = "test suite for parser (top level bindings)" >::: [
     "match expression" >::
     (fun _ -> assert_equal ~printer:show_typ
         (IntTy)
-        (typecheck (parse "match p with | Pair => 0 ")));
+        (typecheck (parse "match p with | Pair => 0")));
   ]
 
 let interp_tests = "test suite for interpretor" >::: [
@@ -419,6 +445,7 @@ let tests = "test_suite for ocaml-lite" >::: [
     parse_expr_tests;
     parse_tests;
     parse_typ_tests;
+    type_expr_tests;
     (* type_tests; *)
     (* interpret_tests; *)
   ]
