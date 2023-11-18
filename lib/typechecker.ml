@@ -172,13 +172,17 @@ module TypeChecker = struct
       clst, context
 
   (* Helper: Get context from pattern vars *)
-  let rec get_pvar_context (plst_opt: pattern_vars option): context list = 
+  let rec get_pvar_context (plst_opt: pattern_vars option) (p_type: typ): context list = 
+    let rec helper plst p_type = 
+      (match p_type with 
+      | FuncTy (t1, t2) -> 
+        let context_lst = helper (List.tl plst) t2 in 
+        (List.hd plst, t1) :: context_lst
+      | _ -> []
+      ) in 
     match plst_opt with 
     | None -> []
-    | Some plst ->
-      let string_to_context (s: string) : context = 
-        let t = fresh_var () in (s, t)
-      in List.map string_to_context plst
+    | Some plst -> helper plst p_type
 
   (* Helper: Get list of constaints that each type of subexpr must match *)
   let get_subexpr_clst (tlst: typ list): constr list = 
@@ -323,36 +327,39 @@ module TypeChecker = struct
       put {clst = st.clst; context = initial_state.context} >>= fun _ ->
         return func_t
 
-    (* type check match expr = t, use updated context to evaluate branches  *)
+    (* type check match expr = t, use updated context to evaluate branches??  *)
     (* For each branch, add constraint type of pattern constructor p_type ~ t.
-      Add constraint for pattern vars. 
       Add pattern vars to context and check subexpr, return type of subexpr *)
     (* Add constraint that all subexpr types match *)
     and typecheck_matchexp (e: expr) (brlst: matchbranch list) = 
       get >>= fun initial_state ->
-      let t, match_state = run_state (typecheck e) initial_state in 
+      let t, _ = run_state (typecheck e) initial_state in 
+
       let typecheck_matchbr (br: matchbranch): typ ConstrState.m = 
         (match br with | MatchBr (s, pvars, e) -> 
-        get >>= fun init_state ->
-          let p_type = List.assoc s init_state.context in
+          let p_type = List.assoc s initial_state.context in
+          (* Add constraint: type of pattern must match type of constructor *)
           let new_constraint = (p_type, t) in 
           (* create pvar context: give each pvar a new type variable *)
-          let pvar_context = get_pvar_context pvars in 
-          (* !!add constraint for pvar typ ~ constructor arg typ *)
-  
+          let pvar_context = get_pvar_context pvars p_type in 
           (* evaluate subexpr in pvar context to get return type*)
-          let branch_state = {clst = match_state.clst; 
-                              context = merge_context [pvar_context; match_state.context]} in 
+          let branch_state = {clst = initial_state.clst; 
+                              context = merge_context [pvar_context; initial_state.context]} in 
           let ret_t, ret_st = run_state (typecheck e) branch_state in 
           (* return ret_typ of subexpr, restore initial context, update constraints *)
           put {clst = merge_clst [ [new_constraint]; ret_st.clst];
-              context = init_state.context} >>= fun _ ->
+              context = initial_state.context} >>= fun _ ->
           return  ret_t) in
+
       let st_lst = (List.map typecheck_matchbr brlst) in 
+      (* Add constraints: Subexpr return type must match *)
       let subexpr_tslt = (List.map (fun st -> eval_state st initial_state) st_lst) in 
+      let subexpr_clst = get_subexpr_clst subexpr_tslt in 
+
+      (* Combine pattern constructor constraints from branches *)
       let list_of_clst = (List.map (fun st -> 
                             let res_st = exec_state st initial_state in res_st.clst) st_lst) in
-      let subexpr_clst = get_subexpr_clst subexpr_tslt in 
+      
       put {clst = merge_clst (subexpr_clst :: list_of_clst);
           context = initial_state.context} >>= fun _ -> 
       return (List.hd subexpr_tslt)
