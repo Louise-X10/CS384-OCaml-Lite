@@ -257,14 +257,22 @@ module TypeChecker = struct
     | CBool _ -> return BoolTy
     | Unit -> return UnitTy
     (* For variable, look in context first, if not there / is free then gen new type var and add to context *)
-    | Var s -> get >>= fun st ->
-      let ty = List.assoc_opt s st.context in 
-      let s_type = 
-      (match ty with | Some t -> t | None -> fresh_var ()) in 
-      let new_context = 
-      (match ty with | Some _ -> st.context | None -> (s, s_type) :: st.context) in 
-      put {clst = st.clst; context = new_context } >>= fun _ ->
-      return s_type
+    | Var s -> 
+      (
+        match s with 
+        | "int_of_string" -> return (FuncTy (IntTy, StringTy))
+        | "string_of_int" -> return (FuncTy (StringTy, IntTy))
+        | "print_string" -> return (FuncTy (StringTy, UnitTy))
+        | _ -> get >>= fun st ->
+          let ty = List.assoc_opt s st.context in 
+          let s_type = 
+          (match ty with | Some t -> t | None -> fresh_var ()) in 
+          let new_context = 
+          (match ty with | Some _ -> st.context | None -> (s, s_type) :: st.context) in 
+          put {clst = st.clst; context = new_context } >>= fun _ ->
+          return s_type
+      )
+      
 
     and typecheck_binop (e1: expr) (op: binop) (e2: expr): typ ConstrState.m  = 
       match op with 

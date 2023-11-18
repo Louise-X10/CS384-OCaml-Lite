@@ -208,6 +208,26 @@ let parse_typ_tests = "test suite for parser (top level bindings)" >::: [
 ]
 
 let type_expr_tests = "test suite for typechecker on expressions" >::: [
+
+    "built-in int_of_string" >::
+    (fun _ -> assert_equal ~printer:show_typ
+        (FuncTy (IntTy, StringTy))
+        (typecheck_expr (parse_expr "int_of_string")));
+
+    "built-in string_of_int" >::
+    (fun _ -> assert_equal ~printer:show_typ
+        (FuncTy (StringTy, IntTy))
+        (typecheck_expr (parse_expr "string_of_int")));
+
+    "built-in print_string" >::
+    (fun _ -> assert_equal ~printer:show_typ
+        (FuncTy (StringTy, UnitTy))
+        (typecheck_expr (parse_expr "print_string")));
+
+    "unit type" >::
+    (fun _ -> assert_equal ~printer:show_typ
+        (UnitTy)
+        (typecheck_expr (parse_expr  "print_string \"hello\" ")));
     
     "add function" >::
     (fun _ -> assert_equal ~printer:show_typ
@@ -284,33 +304,26 @@ let type_expr_tests = "test suite for typechecker on expressions" >::: [
     (fun _ -> assert_equal ~printer:show_typ
         (IntTy)
         (typecheck_expr (parse_expr "let f x y : int = x + 2 * y in f 1 2")));
+
+    "application with let expr equals function" >::
+    (fun _ -> assert_equal ~printer:show_typ
+        (IntTy)
+        (typecheck_expr (parse_expr "let f = fun x y : int => x + 2 * y in f 1 2")));
+
+   (*  "application convoluted" >::
+    (fun _ -> assert_equal ~printer:show_typ
+        (FuncTy( FuncTy(IntTy, IntTy), FuncTy(IntTy, IntTy) ))
+        (typecheck_expr (parse_expr "
+        let f = fun x : int => 2 * x in
+        fun f => (fun a : int => (f a))"))); *)
 ]
+
 (* let type_tests = "test suite for typechecker" >::: [
-
-    "built-in int_of_string" >::
-    (fun _ -> assert_equal ~printer:show_typ
-        (FuncTy (IntTy, StringTy))
-        (typecheck (parse "int_of_string")));
-
-    "built-in string_of_int" >::
-    (fun _ -> assert_equal ~printer:show_typ
-        (FuncTy (StringTy, IntTy))
-        (typecheck (parse "string_of_int")));
-
-    "built-in print_string" >::
-    (fun _ -> assert_equal ~printer:show_typ
-        (FuncTy (StringTy, UnitTy))
-        (typecheck (parse "print_string")));
     
     "function with tuple type" >::
     (fun _ -> assert_equal ~printer:show_typ
         (typecheck (parse "(int * int) -> (int * int）"))
         (typecheck (parse "fun (x, y) => (x+1, y+1)")));
-
-    "unit type" >::
-        (fun _ -> assert_equal ~printer:show_typ
-            (UnitTy)
-            (typecheck (parse "print_string \"hello\" ")));
 
     "ill-typed" >::
         (fun _ -> try
