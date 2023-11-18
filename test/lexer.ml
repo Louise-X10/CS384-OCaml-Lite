@@ -3,8 +3,6 @@ open Ocaml_lite.Lexer
 open Ocaml_lite.Ast
 open Ocaml_lite.Parser
 open Ocaml_lite.Typechecker
-open TypeChecker
-open ConstrState
 
 let lex_tests = "test suite for tokenize" >::: [
     "random code" >::
@@ -262,8 +260,8 @@ let type_expr_tests = "test suite for typechecker on expressions" >::: [
     (fun _ -> assert_equal ~printer:show_typ
         (IntTy)
         (let e = parse_expr  "match p with | Pair (x, y) => x + y" in
-        let st = typecheck e in
-        eval_state st  {clst = []; context = [("Pair", FuncTy(IntTy, FuncTy(IntTy, UserTy "pairing_type")))]}
+        let st = TypeChecker.typecheck_expr e in
+        TypeChecker.ConstrState.eval_state st  {clst = []; context = [("Pair", FuncTy(IntTy, FuncTy(IntTy, UserTy "pairing_type")))]}
         ));
 ]
 (* let type_tests = "test suite for typechecker" >::: [

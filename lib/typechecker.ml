@@ -59,7 +59,7 @@ module TypeChecker = struct
     | _ -> []
 
   (* Helper: only keep type variables that are not free in context *)
-  let rec remove_varty (varty_lst: int list) (context_lst: context list): int list = 
+  let remove_varty (varty_lst: int list) (context_lst: context list): int list = 
     let _, typ_lst = List.split context_lst in 
     (* If varty is not in typ_lst, then return true *)
     let vartyFree (varty): bool = not (List.mem (VarTy varty) typ_lst) in 
@@ -187,7 +187,7 @@ module TypeChecker = struct
       clst, context
 
   (* Helper: Get context from pattern vars *)
-  let rec get_pvar_context (plst_opt: pattern_vars option) (p_type: typ): context list = 
+  let get_pvar_context (plst_opt: pattern_vars option) (p_type: typ): context list = 
     let rec helper plst p_type = 
       (match p_type with 
       | FuncTy (t1, t2) -> 
@@ -218,21 +218,31 @@ module TypeChecker = struct
     | Some t -> [(ret_t, t)]
 
   let empty_state = {clst = []; context = []} (*!! delete this later *)
-  let rec typeof (e:expr) :typ = 
+  let rec typeof_binding (e:binding) :typ = 
     let empty_state = {clst = []; context = []} in
-    let st = typecheck e in 
+    let st = typecheck_binding e in 
     let ret_t, ret_st = run_state st empty_state in 
     let ret_t = unify ret_st.clst ret_t in 
     ret_t
 
-  and typecheck: expr -> typ ConstrState.m = function
+  and typeof_expr (e:expr) :typ = 
+    let empty_state = {clst = []; context = []} in
+    let st = typecheck_expr e in 
+    let ret_t, ret_st = run_state st empty_state in 
+    let ret_t = unify ret_st.clst ret_t in 
+    ret_t
+
+  and typecheck_binding: binding -> typ ConstrState.m = function
+    | LetB(x, b, plst, t, e1) -> typecheck_letbinding x b plst t e1
+    | TypeB(x, tblst) -> typecheck_typebinding x tblst
+
+  and typecheck_expr: expr -> typ ConstrState.m = function
 
     | Binop(e1, op, e2) -> typecheck_binop e1 op e2
     | Unop(op, e) -> typecheck_unop op e
     | Tuple elst -> typecheck_tuple elst
     | IfExp(e1, e2, e3) -> typecheck_ifexp e1 e2 e3
     | LetExp(x, b, plst, t, e1, e2) -> typecheck_letexp x b plst t e1 e2
-    | LetB(x, b, plst, t, e1) -> typecheck_letbinding x b plst t e1
     | MatchExp(e, mlst) -> typecheck_matchexp e mlst
     | App(e1, e2) -> typecheck_app e1 e2
     | Function(plst, t, e) -> typecheck_function plst t e
@@ -255,36 +265,36 @@ module TypeChecker = struct
       match op with 
       | LessThan -> 
         get >>= fun initial_state ->
-        let t1, st1 = run_state (typecheck e1) initial_state in
-        let t2, st2 = run_state (typecheck e2) initial_state in
+        let t1, st1 = run_state (typecheck_expr e1) initial_state in
+        let t2, st2 = run_state (typecheck_expr e2) initial_state in
         put {clst = merge_clst [[(t1, IntTy);(t2, IntTy)]; st1.clst; st2.clst] ;
             context = initial_state.context} >>= fun _ ->
         return BoolTy
       | Equal -> 
         get >>= fun initial_state ->
-        let t1, st1 = run_state (typecheck e1) initial_state in
-        let t2, st2 = run_state (typecheck e2) initial_state in
+        let t1, st1 = run_state (typecheck_expr e1) initial_state in
+        let t2, st2 = run_state (typecheck_expr e2) initial_state in
         put {clst = merge_clst [[(t1, t2)]; st1.clst; st2.clst] ;
         context = initial_state.context} >>= fun _ ->
         return BoolTy
       | StrConcat -> 
         get >>= fun initial_state ->
-        let t1, st1 = run_state (typecheck e1) initial_state in
-        let t2, st2 = run_state (typecheck e2) initial_state in
+        let t1, st1 = run_state (typecheck_expr e1) initial_state in
+        let t2, st2 = run_state (typecheck_expr e2) initial_state in
         put {clst = merge_clst [[(t1, StringTy);(t2, StringTy)]; st1.clst; st2.clst] ;
             context = initial_state.context} >>= fun _ ->
         return StringTy
       | LogicAnd | LogicOr -> 
         get >>= fun initial_state ->
-        let t1, st1 = run_state (typecheck e1) initial_state in
-        let t2, st2 = run_state (typecheck e2) initial_state in
+        let t1, st1 = run_state (typecheck_expr e1) initial_state in
+        let t2, st2 = run_state (typecheck_expr e2) initial_state in
         put {clst = merge_clst [[(t1, BoolTy);(t2, BoolTy)]; st1.clst; st2.clst] ;
             context = initial_state.context} >>= fun _ ->
         return BoolTy
       | _ -> 
         get >>= fun initial_state ->
-        let t1, st1 = run_state (typecheck e1) initial_state in
-        let t2, st2 = run_state (typecheck e2) initial_state in
+        let t1, st1 = run_state (typecheck_expr e1) initial_state in
+        let t2, st2 = run_state (typecheck_expr e2) initial_state in
         put {clst = merge_clst [[(t1, IntTy);(t2, IntTy)]; st1.clst; st2.clst] ;
             context = initial_state.context} >>= fun _ ->
         return IntTy
@@ -293,13 +303,13 @@ module TypeChecker = struct
       match op with 
       | LogicNegate -> 
         get >>= fun initial_state ->
-        let t, st = run_state (typecheck e) initial_state in
+        let t, st = run_state (typecheck_expr e) initial_state in
         put {clst = (t,BoolTy) :: st.clst ;
             context = initial_state.context} >>= fun _ ->
         return BoolTy
       | IntNegate -> 
         get >>= fun initial_state ->
-        let t, st = run_state (typecheck e) initial_state in
+        let t, st = run_state (typecheck_expr e) initial_state in
         put {clst = (t,IntTy) :: st.clst ;
             context = initial_state.context} >>= fun _ ->
         return IntTy
@@ -309,11 +319,11 @@ module TypeChecker = struct
       let rec get_typs_constr (elst: expr list): typ list * constr list = 
         (match elst with 
         | e1 :: e2 :: [] -> 
-          let t1, st1 = run_state (typecheck e1) initial_state in
-          let t2, st2 = run_state (typecheck e2) initial_state in
+          let t1, st1 = run_state (typecheck_expr e1) initial_state in
+          let t2, st2 = run_state (typecheck_expr e2) initial_state in
           [t1; t2] , merge_clst [st1.clst; st2.clst]
         | e1 :: tail -> 
-          let t1, st1 = run_state (typecheck e1) initial_state in
+          let t1, st1 = run_state (typecheck_expr e1) initial_state in
           let typs, new_constr = get_typs_constr tail in
           t1 :: typs, merge_clst [st1.clst; new_constr]
         | _ -> raise (TypeError ("Need more than one tuple elements"))
@@ -324,16 +334,16 @@ module TypeChecker = struct
         return (TupleTy tlst)
     and typecheck_ifexp (e1: expr) (e2: expr) (e3: expr): typ ConstrState.m  = 
       get >>= fun initial_state ->
-      let t1, st1 = run_state (typecheck e1) initial_state in
-      let t2, st2 = run_state (typecheck e2) initial_state in
-      let t3, st3 = run_state (typecheck e3) initial_state in
+      let t1, st1 = run_state (typecheck_expr e1) initial_state in
+      let t2, st2 = run_state (typecheck_expr e2) initial_state in
+      let t3, st3 = run_state (typecheck_expr e3) initial_state in
       put {clst = [(t1,BoolTy); (t2,t3)] @ st1.clst @ st2.clst @ st3.clst ;
             context = initial_state.context} >>= fun _ ->
         return t2
     and typecheck_app (e1: expr) (e2: expr): typ ConstrState.m  = 
       get >>= fun initial_state ->
-      let t1, st1 = run_state (typecheck e1) initial_state in
-      let t2, st2 = run_state (typecheck e2) initial_state in
+      let t1, st1 = run_state (typecheck_expr e1) initial_state in
+      let t2, st2 = run_state (typecheck_expr e2) initial_state in
       let t3 = fresh_var () in 
       put {clst = [(t1,FuncTy (t2, t3))] @ st1.clst @ st2.clst;
             context = initial_state.context} >>= fun _ ->
@@ -344,7 +354,7 @@ module TypeChecker = struct
       get >>= fun initial_state ->
       let clst, context = get_param_state plst in 
       let function_state = {clst = initial_state.clst @ clst; context = merge_context [initial_state.context; context]} in
-      let ret_t, st = run_state (typecheck e) function_state in
+      let ret_t, st = run_state (typecheck_expr e) function_state in
       let ret_constraint = get_ret_constraint t ret_t in 
       let func_t = get_function_type context ret_t in
       put {clst = merge_clst [ret_constraint; st.clst]; 
@@ -357,7 +367,7 @@ module TypeChecker = struct
     (* Add constraint that all subexpr types match *)
     and typecheck_matchexp (e: expr) (brlst: matchbranch list) = 
       get >>= fun initial_state ->
-      let t, _ = run_state (typecheck e) initial_state in 
+      let t, _ = run_state (typecheck_expr e) initial_state in 
 
       let typecheck_matchbr (br: matchbranch): typ ConstrState.m = 
         (match br with | MatchBr (s, pvars, e) -> 
@@ -369,7 +379,7 @@ module TypeChecker = struct
           (* evaluate subexpr in pvar context to get return type*)
           let branch_state = {clst = initial_state.clst; 
                               context = merge_context [pvar_context; initial_state.context]} in 
-          let ret_t, ret_st = run_state (typecheck e) branch_state in 
+          let ret_t, ret_st = run_state (typecheck_expr e) branch_state in 
           (* return ret_typ of subexpr, restore initial context, update constraints *)
           put {clst = merge_clst [ [new_constraint]; ret_st.clst];
               context = initial_state.context} >>= fun _ ->
@@ -404,7 +414,7 @@ module TypeChecker = struct
         let gen_x_type = generalize e1_state.context x_type in
         (* Evaluate e2 with generalized context *)
         let e2_state = {clst = e1_state.clst; context = merge_context [[(x, gen_x_type)]; e1_state.context] } in 
-        let ret_t, ret_state = run_state (typecheck e2) e2_state in 
+        let ret_t, ret_state = run_state (typecheck_expr e2) e2_state in 
         put { clst = ret_state.clst; 
               context = initial_state.context } >>= fun _ ->
         return ret_t
@@ -433,10 +443,15 @@ module TypeChecker = struct
       (* Apply Forall to each free var *)
       let helper (x_type: typ) (varty: int) : typ = ForallTy(varty, x_type) in 
       List.fold_left helper x_type varty_lst 
+
+    and typecheck_typebinding (s: string) (tblst: typ_binding list): typ ConstrState.m =
+      failwith "undefined"
 end
 
 let typecheck (e: program) : typ = 
   failwith "undefined"
 
+let typecheck_binding (e: binding) : typ = 
+  TypeChecker.typeof_binding e
 let typecheck_expr (e: expr) : typ = 
-  TypeChecker.typeof e
+  TypeChecker.typeof_expr e
