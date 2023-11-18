@@ -208,6 +208,7 @@ let parse_typ_tests = "test suite for parser (top level bindings)" >::: [
 ]
 
 let type_expr_tests = "test suite for typechecker on expressions" >::: [
+    
     "add function" >::
     (fun _ -> assert_equal ~printer:show_typ
         (IntTy)
@@ -232,6 +233,11 @@ let type_expr_tests = "test suite for typechecker on expressions" >::: [
     (fun _ -> assert_equal ~printer:show_typ
         (TupleTy [ IntTy; TupleTy [IntTy; IntTy]])
         (typecheck_expr (parse_expr "(1, (2, 3))")));
+
+    "id function" >::
+    (fun _ -> assert_equal ~printer:show_typ
+        (FuncTy (IntTy, IntTy))
+        (typecheck_expr (parse_expr "fun x : int => x")));
 
     "function expression, no type" >::
     (fun _ -> assert_equal
@@ -263,6 +269,21 @@ let type_expr_tests = "test suite for typechecker on expressions" >::: [
         let st = TypeChecker.typecheck_expr e in
         TypeChecker.ConstrState.eval_state st  {clst = []; context = [("Pair", FuncTy(IntTy, FuncTy(IntTy, UserTy "pairing_type")))]}
         ));
+
+    "let expr, no params, no type annotation" >::
+    (fun _ -> assert_equal ~printer:show_typ
+        (IntTy)
+        (typecheck_expr (parse_expr "let x = 1 in x + 2")));
+
+    "let expr, no params, with type annotation" >::
+    (fun _ -> assert_equal ~printer:show_typ
+        (IntTy)
+        (typecheck_expr (parse_expr "let x : int = 1 in x + 2")));
+
+    "application with let expr, with params, with type annotation" >::
+    (fun _ -> assert_equal ~printer:show_typ
+        (IntTy)
+        (typecheck_expr (parse_expr "let f x y : int = x + 2 * y in f 1 2")));
 ]
 (* let type_tests = "test suite for typechecker" >::: [
 
@@ -280,28 +301,11 @@ let type_expr_tests = "test suite for typechecker on expressions" >::: [
     (fun _ -> assert_equal ~printer:show_typ
         (FuncTy (StringTy, UnitTy))
         (typecheck (parse "print_string")));
-
-    "id function" >::
-    (fun _ -> assert_equal ~printer:show_typ
-        (FuncTy (IntTy, IntTy))
-        (typecheck (parse "fun x : int => x")));
     
     "function with tuple type" >::
     (fun _ -> assert_equal ~printer:show_typ
         (typecheck (parse "(int * int) -> (int * int）"))
         (typecheck (parse "fun (x, y) => (x+1, y+1)")));
-
-    "application" >::
-    (fun _ -> assert_equal ~printer:show_typ
-        (IntTy)
-        (typecheck (parse "let f = fun x y : int => x + 2y in f 1 2")));
-
-    "application convoluted" >::
-        (fun _ -> assert_equal ~printer:show_typ
-            (FuncTy( FuncTy(IntTy, IntTy), FuncTy(IntTy, IntTy) ))
-            (typecheck (parse "
-            let f = fun x : int => 2x in
-            fun f => (fun a : int => (f a))")));
 
     "unit type" >::
         (fun _ -> assert_equal ~printer:show_typ
@@ -328,7 +332,7 @@ let type_expr_tests = "test suite for typechecker on expressions" >::: [
     "match expression" >::
     (fun _ -> assert_equal ~printer:show_typ
         (IntTy)
-        (typecheck (parse "match p with | Pair => 0")));
+        (typecheck_expr (parse_expr "match p with | Pair => 0")));
   ]
 
 let interp_tests = "test suite for interpretor" >::: [
@@ -439,7 +443,7 @@ let interp_tests = "test suite for interpretor" >::: [
       Function([{ name="x"; p_type=Some IntTy}; { name="y"; p_type=Some IntTy}], Some IntTy, 
       Add(Var "x", Mul(CInt 2, Var "y")))  
       )
-      (interpret  "fun x y : int => x + 2y"));
+      (interpret  "fun x y : int => x + 2 * y"));
 
   "function expression, with type" >::
   (fun _ -> assert_equal
@@ -447,7 +451,7 @@ let interp_tests = "test suite for interpretor" >::: [
       Function([{ name="x"; p_type=Some IntTy}; { name="y"; p_type=Some IntTy}], Some IntTy, 
       Add(Var "x", Mul(CInt 2, Var "y")))  
       )
-      (interpret  "fun (x:int) (y:int) : int => x + 2y"));
+      (interpret  "fun (x:int) (y:int) : int => x + 2 * y"));
     
   ]
  *)

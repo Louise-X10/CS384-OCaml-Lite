@@ -158,7 +158,7 @@ module TypeChecker = struct
     let constraints = List.fold_left (@) [] lst_of_constr in 
     List.sort_uniq compare constraints
 
-  (* Helper: Get initial state from param list. 
+  (* Helper: Get function's initial state from param list. Must have at least 1 param. 
     See (x: int), return {clst = [(t0, int)]; context = [(x, t0)]}
     See (x), return {clst = []; context = [(x, t0)]}
   *)
@@ -414,11 +414,21 @@ module TypeChecker = struct
             then {clst = initial_state.clst; 
                   context = merge_context[[(x, fresh_var ())]; initial_state.context]} 
             else initial_state) in
-        let x_type, e1_state = run_state (typecheck_function plst t e1) e1_initial_state in 
+        (* if there is plst, then check as if function, otherwise, check as if expression *)
+        let x_type, e1_state = 
+          if List.length plst > 0 then run_state (typecheck_function plst t e1) e1_initial_state 
+          else 
+            let e1_type, e1_temp_state = run_state (typecheck_expr e1) e1_initial_state in 
+            (* Add optional user constraint on return type *)
+            let e1_ret_state = {clst = merge_clst[(get_ret_constraint t e1_type); e1_temp_state.clst]; 
+            context = e1_temp_state.context} in 
+            e1_type, e1_ret_state
+          in 
+        (* Unify then generalize *)
         let x_type = unify e1_state.clst x_type in 
         let gen_x_type = generalize e1_state.context x_type in
-        (* Evaluate e2 with generalized context *)
-        let e2_state = {clst = e1_state.clst; context = merge_context [[(x, gen_x_type)]; e1_state.context] } in 
+        (* Evaluate e2 with generalized context. No clst after unify *)
+        let e2_state = {clst = []; context = merge_context [[(x, gen_x_type)]; e1_state.context] } in 
         let ret_t, ret_state = run_state (typecheck_expr e2) e2_state in 
         put { clst = ret_state.clst; 
               context = initial_state.context } >>= fun _ ->
