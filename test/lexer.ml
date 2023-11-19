@@ -321,10 +321,28 @@ let type_expr_tests = "test suite for typechecker on expressions" >::: [
         (typecheck_expr (parse_expr "
         let f = fun x : int => 2 * x in
         fun f => (fun a : int => (f a))"))); *)
+
 ]
 
-(* let type_tests = "test suite for typechecker" >::: [
-    
+let type_tests = "test suite for typechecker" >::: [
+
+    "let binding, with type" >::
+    (fun _ -> assert_equal
+        (FuncTy(IntTy, BoolTy))
+        (typecheck_binding (List.hd (parse "let f (x : int) : bool = if x < 0 then true else false;;"))));
+
+    "let binding, no type" >::
+    (fun _ -> assert_equal
+        (FuncTy(IntTy, BoolTy))
+        (typecheck_binding (List.hd (parse "let f x = if x < 0 then true else false;;"))));
+
+    "function application from let binding, no type" >::
+    (fun _ -> assert_equal
+        ([FuncTy(IntTy, BoolTy); BoolTy])
+        (typecheck (parse
+        "let f x = if x < 0 then true else false;;
+            let result = f 1;;")));
+        (*
     "function with tuple type" >::
     (fun _ -> assert_equal ~printer:show_typ
         (typecheck (parse "(int * int) -> (int * int）"))
@@ -351,9 +369,20 @@ let type_expr_tests = "test suite for typechecker on expressions" >::: [
     (fun _ -> assert_equal ~printer:show_typ
         (IntTy)
         (typecheck_expr (parse_expr "match p with | Pair => 0")));
-  ]
 
+    "function application from let binding, no type" >::
+    (fun _ -> assert_equal
+        ([LetB("f", false, [{ name="x"; p_type=None}], None, 
+            IfExp (Binop(Var "x", LessThan, CInt 0), CBool true, CBool false));
+         LetB("result", false, [], None, App (Var "f", CInt 1))
+        ])
+        (parse
+            "let f x = if x < 0 then true else false;;
+            let result = f 1;;"));
+ *)
+]
 
+(* 
 let interp_tests = "test suite for interpretor" >::: [
   "arithmetic computations" >::
   (fun _ -> assert_equal
@@ -480,7 +509,7 @@ let tests = "test_suite for ocaml-lite" >::: [
     parse_tests;
     parse_typ_tests;
     type_expr_tests;
-    (* type_tests; *)
+    type_tests;
     (* interpret_tests; *)
   ]
 

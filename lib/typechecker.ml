@@ -146,7 +146,8 @@ module TypeChecker = struct
   (* Unify constraint list to give actual return type *)
   let unify (clst: constr list) (t: typ): typ = 
     let res_clst, res_slst = unify_multiple_constr clst [] in 
-    let _ = match res_clst with | [] -> res_clst | _ ->  raise (TypeError ("Unresolved constraints remain!")) in 
+    (* Assert that res_clst must be empty *)
+    let _ = if res_clst = [] then () else (raise (TypeError ("Unresolved constraints remain!"))) in 
     let ret_t = apply_subst res_slst t in 
     ret_t
 
@@ -230,8 +231,27 @@ module TypeChecker = struct
     match t with 
     | None -> []
     | Some t -> [(ret_t, t)]
-  let rec typeof_binding (e:binding) :typ = 
-    let st = typecheck_binding e in 
+  
+  (* Helper: chain multiple binding type contexts in order 
+     Return list of binding types and current state after chaining *)
+  let rec chain_states (st_lst: typ ConstrState.m list) (init_st: constr_state): typ list * constr_state = 
+    match st_lst with 
+    | [] -> failwith "Error in chaining binding states"
+    | st :: [] -> 
+      let b_typ, b_st = run_state st init_st in 
+      [b_typ], b_st
+    | st :: tail -> 
+      let b_typ, b_st = run_state st init_st in 
+      let b_typs, ret_st = chain_states tail b_st in 
+      b_typ :: b_typs, ret_st
+
+  let rec typeof_program (blst: program): typ list = 
+    let st_lst = List.map typecheck_binding blst in 
+    let ret_typs, _ = chain_states st_lst empty_state in 
+    ret_typs
+
+  and typeof_binding (b: binding) :typ = 
+    let st = typecheck_binding b in 
     let ret_t, ret_st = run_state st empty_state in 
     let ret_t = unify ret_st.clst ret_t in 
     ret_t
@@ -415,37 +435,18 @@ module TypeChecker = struct
           context = initial_state.context} >>= fun _ -> 
       return (List.hd subexpr_tslt)
     
-    (* Evaluate type of e1, unify constraints, generalize, 
-       add x ~ generalized type to context when checking e2, 
+    (* Use context with {x ~ generalized type} added when checking e2, 
        return new constraint list with original context *)
     and typecheck_letexp (x: string) (b:bool) (plst: param list) (t:typ option) (e1: expr) (e2:expr): typ ConstrState.m =
       get >>= fun initial_state -> 
-        (* If recursive, then give x a new type var when checking e1 *)
-        let e1_initial_state = 
-          (if b = true 
-            then {clst = initial_state.clst; 
-                  context = merge_context[[(x, fresh_var ())]; initial_state.context]} 
-            else initial_state) in
-        (* if there is plst, then check as if function, otherwise, check as if expression *)
-        let x_type, e1_state = 
-          if List.length plst > 0 then run_state (typecheck_function plst t e1) e1_initial_state 
-          else 
-            let e1_type, e1_temp_state = run_state (typecheck_expr e1) e1_initial_state in 
-            (* Add optional user constraint on return type *)
-            let e1_ret_state = {clst = merge_clst[(get_ret_constraint t e1_type); e1_temp_state.clst]; 
-            context = e1_temp_state.context} in 
-            e1_type, e1_ret_state
-          in 
-        (* Unify then generalize *)
-        let x_type = unify e1_state.clst x_type in 
-        let gen_x_type = generalize e1_state.context x_type in
-        (* Evaluate e2 with generalized context. No clst after unify *)
-        let e2_state = {clst = []; context = merge_context [[(x, gen_x_type)]; e1_state.context] } in 
+        let _, e2_state = run_state (typecheck_letbinding x b plst t e1) initial_state in 
         let ret_t, ret_state = run_state (typecheck_expr e2) e2_state in 
         put { clst = ret_state.clst; 
               context = initial_state.context } >>= fun _ ->
         return ret_t
 
+    (* Evaluate type of e1, unify constraints, generalize, 
+       add x ~ generalized type to context *)
     and typecheck_letbinding (x: string) (b:bool) (plst: param list) (t:typ option) (e1: expr): typ ConstrState.m =
       get >>= fun initial_state -> 
         (* If recursive, then give x a new type var when checking e1 *)
@@ -454,11 +455,19 @@ module TypeChecker = struct
             then {clst = initial_state.clst; 
                   context = merge_context[[(x, fresh_var ())]; initial_state.context]} 
             else initial_state) in
-        let x_type, e1_state = run_state (typecheck_function plst t e1) e1_initial_state in 
+        (* If there is plst, then check like a function. Otherwise, check like an expression *)
+        let x_type, e1_state = 
+          if List.length plst > 0 then run_state (typecheck_function plst t e1) e1_initial_state else 
+            let e1_type, e1_temp_state = run_state (typecheck_expr e1) e1_initial_state in 
+            (* Add optional user constraint on return type *)
+            let e1_ret_state = {clst = merge_clst[(get_ret_constraint t e1_type); e1_temp_state.clst]; 
+            context = e1_temp_state.context} in 
+            e1_type, e1_ret_state in 
+        (* Unify then generalize *)
         let x_type = unify e1_state.clst x_type in 
         let gen_x_type = generalize e1_state.context x_type in
-        (* Add generalized type to context *)
-        put { clst = e1_state.clst; 
+        (* Add generalized type to context. No clst after unify *)
+        put { clst = []; 
               context = merge_context [[(x, gen_x_type)]; initial_state.context] } >>= fun _ -> 
         return gen_x_type
 
@@ -493,9 +502,8 @@ module TypeChecker = struct
 
 end
 
-let typecheck (e: program) : typ = 
-  failwith "undefined"
-
+let typecheck (e: program) : typ list = 
+  TypeChecker.typeof_program e
 let typecheck_binding (e: binding) : typ = 
   TypeChecker.typeof_binding e
 let typecheck_expr (e: expr) : typ = 
