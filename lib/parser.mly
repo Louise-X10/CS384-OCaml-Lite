@@ -110,8 +110,7 @@ param:
          | if <expr> then <expr> else <expr>
          | fun [<param>]+ [: <type>] => <expr>
          | <expr> <binop> <expr>
-         | <unop> <expr>
-         | ( <expr> [, <expr>]+ )
+         | <unop> <expr>  
          | match <expr> with ['|' <match_branch>]+
          # | <expr> <expr> # change to <app>
          | <app>
@@ -120,6 +119,7 @@ param:
 
 <base> ::=          
          | ( <expr> )
+         | ( <expr> [, <expr>]+ )
          | $int
          | true
          | false
@@ -139,7 +139,6 @@ expr:
   | Match; e = expr; With; bs = match_branch+;                                                                  { MatchExp(e, bs) } 
   | e1 = expr; op = binop; e2 = expr;                                                                           { Binop(e1, op, e2)}
   | op = unop; e = expr;                                                                                        { Unop(op, e)}
-  | LParen; e = expr; Comma; es = separated_nonempty_list(Comma, expr); RParen;                                 { Tuple(e::es) }
   | a = application;                                                                                            { a }
 
 %inline binop:
@@ -163,6 +162,7 @@ application:
   | b = base;                  { b }
 
 base:
+  | LParen; e = expr; Comma; es = separated_nonempty_list(Comma, expr); RParen;     { Tuple(e::es) }
   | LParen; e = expr; RParen;         { e }
   | n = Int;                          { CInt n }
   | True;                             { CBool true }
@@ -170,6 +170,7 @@ base:
   | s = String;                       { CString s }
   | x = Id;                           { Var x }
   | LParen; RParen;                   { Unit }
+  
 
 match_branch: 
 | Pipe; x = Id; vs = option(pattern_vars); DoubleArrow; e = expr;   { MatchBr(x, vs, e) }

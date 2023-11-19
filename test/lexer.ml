@@ -292,7 +292,7 @@ let type_expr_tests = "test suite for typechecker on expressions" >::: [
         (FuncTy (IntTy, FuncTy(IntTy, IntTy)))
         (typecheck_expr (parse_expr "fun (x : int) => (fun a : int => x + a)")));
 
-    "match expr (nested expr, pattern vars)" >::
+    "match expr with given context (nested expr, pattern vars)" >::
     (fun _ -> assert_equal ~printer:show_typ
         (IntTy)
         (let e = parse_expr  "match p with | Pair (x, y) => x + y" in
@@ -325,6 +325,11 @@ let type_expr_tests = "test suite for typechecker on expressions" >::: [
         (TupleTy [IntTy; UnitTy])
         (typecheck_expr (parse_expr "let id x = x in (id 2, id ())")));
 
+    "function with tuple type" >::
+    (fun _ -> assert_equal ~printer:show_typ
+        (parse_type "(int * int) -> (int * int)")
+        (typecheck_expr (parse_expr " fun (p: int*int) => p")));
+
     "ill-typed" >::
     (fun _ -> try
         let _ = typecheck_expr (parse_expr "
@@ -355,27 +360,20 @@ let type_tests = "test suite for typechecker" >::: [
         (typecheck (parse
         "let f x = if x < 0 then true else false;;
         let result = f 1;;")));
-        (*
-    "function with tuple type" >::
-    (fun _ -> assert_equal ~printer:show_typ
-        (typecheck (parse "(int * int) -> (int * int）"))
-        (typecheck (parse "fun (x, y) => (x+1, y+1)")));
 
-    "match expression" >::
-    (fun _ -> assert_equal ~printer:show_typ
-        (IntTy)
-        (typecheck_expr (parse_expr "match p with | Pair => 0")));
-
-    "function application from let binding, no type" >::
+    "type binding" >::
     (fun _ -> assert_equal
-        ([LetB("f", false, [{ name="x"; p_type=None}], None, 
-            IfExp (Binop(Var "x", LessThan, CInt 0), CBool true, CBool false));
-         LetB("result", false, [], None, App (Var "f", CInt 1))
-        ])
-        (parse
-            "let f x = if x < 0 then true else false;;
-            let result = f 1;;"));
- *)
+        (UserTy "pairing")
+        (typecheck_binding (List.hd (parse "type pairing = | Pair of int * int;;"))));
+
+            
+    (* "match expression" >::
+    (fun _ -> assert_equal ~printer:show_typ
+        ([IntTy])
+        (typecheck (parse "
+        type pairing = | Pair of int * int | Single of int;;
+        let p = Pair (1, 2);;
+        let res = match p with | Pair x, y => x + y | Single x => x;;"))); *)
 ]
 
 (* 
