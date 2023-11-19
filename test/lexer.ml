@@ -310,6 +310,11 @@ let type_expr_tests = "test suite for typechecker on expressions" >::: [
         (IntTy)
         (typecheck_expr (parse_expr "let f = fun x y : int => x + 2 * y in f 1 2")));
 
+    "id function application from let expr" >::
+    (fun _ -> assert_equal
+        (TupleTy [IntTy; UnitTy])
+        (typecheck_expr (parse_expr "let id x = x in (id 2, id ())")));
+
    (*  "application convoluted" >::
     (fun _ -> assert_equal ~printer:show_typ
         (FuncTy( FuncTy(IntTy, IntTy), FuncTy(IntTy, IntTy) ))
@@ -347,6 +352,7 @@ let type_expr_tests = "test suite for typechecker on expressions" >::: [
         (IntTy)
         (typecheck_expr (parse_expr "match p with | Pair => 0")));
   ]
+
 
 let interp_tests = "test suite for interpretor" >::: [
   "arithmetic computations" >::

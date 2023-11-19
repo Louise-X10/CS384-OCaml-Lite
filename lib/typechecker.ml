@@ -70,9 +70,9 @@ module TypeChecker = struct
   let rec occurs_check (t1: typ) (t2: typ): bool = 
     match t2 with 
     | FuncTy(arg, body) -> 
-      if t1 == arg then true else occurs_check t1 body
+      if t1 = arg then true else occurs_check t1 body
     | TupleTy tlst -> List.exists (fun t -> occurs_check t1 t) tlst
-    | VarTy _ as t -> if t1 == t then true else false
+    | VarTy _ as t -> if t1 = t then true else false
     | _ -> false
 
   (* Helper: apply sub (i.e. map any occurance of t1 to t2) in target_t*)
@@ -83,7 +83,7 @@ module TypeChecker = struct
       let new_body = sub_type subst body in
       FuncTy(new_arg, new_body)
     | TupleTy tlst -> TupleTy (List.map (fun t -> sub_type subst t) tlst)
-    | VarTy _ as t -> if t == fst subst then snd subst else t
+    | VarTy _ as t -> if t = fst subst then snd subst else t
     | t -> t
 
   (* Helper: apply single sub to single constraint *)
@@ -102,12 +102,16 @@ module TypeChecker = struct
       if t1 <> t2 then [], [(VarTy t1, VarTy t2)]
       else  [], []
     | (VarTy _ as t1), t2 | t2, (VarTy _ as t1) -> 
-      if occurs_check t1 t2 == true then raise (TypeError ("Infinite unification")) else
+      if occurs_check t1 t2 = true then raise (TypeError ("Infinite unification")) else
       [], [(t1, t2)]
     | FuncTy (arg1, body1), FuncTy (arg2, body2) -> 
       [(arg1, arg2); (body1, body2)], []
     | TupleTy tls1, TupleTy tls2 -> 
       List.combine tls1 tls2, []
+    | ForallTy (i, t1), t2 -> 
+      let new_t = fresh_var () in 
+      let new_constraint = (sub_type (VarTy i, new_t) t1), t2 in 
+      [new_constraint], []
     | t1, t2 -> if t1 <> t2 then raise (TypeError ("Unification failed")) else [], []
   
   (* Helper: unify all constraints to build sub list *)
@@ -418,7 +422,7 @@ module TypeChecker = struct
       get >>= fun initial_state -> 
         (* If recursive, then give x a new type var when checking e1 *)
         let e1_initial_state = 
-          (if b == true 
+          (if b = true 
             then {clst = initial_state.clst; 
                   context = merge_context[[(x, fresh_var ())]; initial_state.context]} 
             else initial_state) in
@@ -446,7 +450,7 @@ module TypeChecker = struct
       get >>= fun initial_state -> 
         (* If recursive, then give x a new type var when checking e1 *)
         let e1_initial_state = 
-          (if b == true 
+          (if b = true 
             then {clst = initial_state.clst; 
                   context = merge_context[[(x, fresh_var ())]; initial_state.context]} 
             else initial_state) in
@@ -461,6 +465,7 @@ module TypeChecker = struct
     and generalize (context_lst: context list) (x_type: typ) : typ = 
       (* Get all varty free in the x_type constraint *)
       let varty_lst = get_varty x_type in 
+      let varty_lst = List.sort_uniq compare varty_lst in
       (* Remove varty that are not free in context *)
       let varty_lst = remove_varty varty_lst context_lst in 
       (* Apply Forall to each free var *)
