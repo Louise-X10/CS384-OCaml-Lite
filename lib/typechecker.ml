@@ -192,19 +192,33 @@ module TypeChecker = struct
       let context = (s, ti)::context in 
       clst, context
 
-  (* Helper: Get context from pattern vars *)
-  let get_pvar_context (plst_opt: pattern_vars option) (p_type: typ): context list = 
-    let rec helper plst p_type = 
-      (match p_type with 
-      | FuncTy (t1, t2) -> 
-        let context_lst = helper (List.tl plst) t2 in 
-        (List.hd plst, t1) :: context_lst
-      | _ -> []
+  (* Helper (for matchexp): Get context from constructor and pattern vars  *)
+  let get_pvar_context (plst_opt: pattern_vars option) (constructor_type: typ): context list = 
+    (* Assign each pvar in plst to a type in pvars_tlst *)
+    let rec helper (plst: pattern_vars) (pvars_tlst: typ list): context list = 
+      (match pvars_tlst with 
+      | [] -> if plst <> [] then raise (TypeError ("Not enough pattern variables for type constructor")) else []
+      | ti::[]->  [(List.hd plst, ti)]
+      | t1 :: tail -> (List.hd plst, t1) :: helper (List.tl plst) tail
       ) in 
     match plst_opt with 
+    (* If no pvar, context is empty *)
     | None -> []
-    | Some plst -> helper plst p_type
+    (* If has pvar, context is each pvar assigned to typ of arg in constructor definition *)
+    | Some plst -> 
+      (match constructor_type with 
+      | FuncTy(TupleTy pvars_tlst, _) -> helper plst pvars_tlst
+      | FuncTy(pvar_t, _) -> helper plst [pvar_t]
+      | _ -> raise (TypeError "Type Constructor is ill-typed"))
 
+  (* Helper: Get pattern type from constructor type *)
+  let get_ptype: typ -> typ = function
+      (* If has pvar, pattern type = the final return type of constructor type *)
+      | FuncTy(_, ret_t) -> ret_t
+      | TupleTy _ | VarTy _ | ForallTy (_ , _) -> raise (TypeError "Type Constructor is ill-typed, not function")
+      (* If no pvar, pattern type = constructor type *)
+      | _ as t -> t 
+    
   (* Helper: Get list of constaints that each type of subexpr must match *)
   let get_subexpr_clst (tlst: typ list): constr list = 
     let lst1 = List.rev (List.tl (List.rev tlst)) in 
@@ -217,14 +231,6 @@ module TypeChecker = struct
     | [] -> raise (TypeError ("Need at least one function parameter"))
     | (_, ti)::[]->  FuncTy(ti, ret_t)
     | (_, t1) :: tail -> FuncTy(t1, get_function_type tail ret_t)
-
-  (* Helper: Get typ_binding type from 
-     chaining list of constructor types into FuncTy *)
-  let rec chain_tb_type (tlst: typ list) (def_t: typ): typ = 
-    match tlst with 
-    | [] -> raise (TypeError ("Need at least one constructor variable"))
-    | t :: [] -> FuncTy(t, def_t)
-    | t :: tail -> FuncTy(t, chain_tb_type tail def_t)
   
   (* Helper: Get constraint if user provides return type annotation *)
   let get_ret_constraint (t: typ option) (ret_t: typ): constr list = 
@@ -237,7 +243,7 @@ module TypeChecker = struct
   let rec chain_states (st_lst: typ ConstrState.m list) (init_st: constr_state): typ list * constr_state = 
     match st_lst with 
     | [] -> failwith "Error in chaining binding states"
-    | st :: [] -> 
+    | [st] -> 
       let b_typ, b_st = run_state st init_st in 
       [b_typ], b_st
     | st :: tail -> 
@@ -389,41 +395,43 @@ module TypeChecker = struct
     (* Add params to context, then typecheck e, return ret_t with original context *)
     and typecheck_function (plst: param list) (t: typ option) (e: expr) : typ ConstrState.m  = 
       get >>= fun initial_state ->
-      let clst, context = get_param_state plst in 
-      let function_state = {clst = initial_state.clst @ clst; context = merge_context [initial_state.context; context]} in
-      let ret_t, st = run_state (typecheck_expr e) function_state in
+      let param_clst, param_context = get_param_state plst in 
+      let function_state = {clst = initial_state.clst; context = merge_context [initial_state.context; param_context]} in
+      let ret_t, ret_st = run_state (typecheck_expr e) function_state in
       let ret_constraint = get_ret_constraint t ret_t in 
-      let func_t = get_function_type context ret_t in
-      put {clst = merge_clst [ret_constraint; st.clst]; 
+      let func_t = get_function_type param_context ret_t in
+      put {clst = merge_clst [ret_constraint; ret_st.clst; param_clst]; 
           context = initial_state.context} >>= fun _ ->
         return func_t
 
-    (* type check match expr = t, use updated context to evaluate branches??  *)
+    (* type check match expr e = e_typ, use updated context to evaluate branches??  *)
     (* For each branch, add constraint type of pattern constructor p_type ~ t.
       Add pattern vars to context and check subexpr, return type of subexpr *)
+      (* e, p1, p2, ..., pn *)
     (* Add constraint that all subexpr types match *)
-    and typecheck_matchexp (e: expr) (brlst: matchbranch list) = 
+    and typecheck_matchexp (e: expr) (brlst: matchbranch list): typ ConstrState.m = 
       get >>= fun initial_state ->
-      let t, _ = run_state (typecheck_expr e) initial_state in 
+      let e_typ, _ = run_state (typecheck_expr e) initial_state in 
 
       let typecheck_matchbr (br: matchbranch): typ ConstrState.m = 
         (match br with | MatchBr (s, pvars, e) -> 
-          let p_type = List.assoc s initial_state.context in
-          (* Add constraint: type of pattern must match type of constructor *)
-          let new_constraint = (p_type, t) in 
-          (* create pvar context: give each pvar a new type variable *)
-          let pvar_context = get_pvar_context pvars p_type in 
+          let constructor_type = List.assoc s initial_state.context in
+          (* create pvar context: give each pvar a type according to constructor def *)
+          let pvar_context = get_pvar_context pvars constructor_type in 
           (* evaluate subexpr in pvar context to get return type*)
           let branch_state = {clst = initial_state.clst; 
                               context = merge_context [pvar_context; initial_state.context]} in 
           let ret_t, ret_st = run_state (typecheck_expr e) branch_state in 
+          (* Add constraint: type of pattern must match type of constructor, i.e. match type of e, p1, p2, ..., pn *)
+          let p_typ = get_ptype constructor_type in 
+          let new_constraint = (e_typ, p_typ) in 
           (* return ret_typ of subexpr, restore initial context, update constraints *)
           put {clst = merge_clst [ [new_constraint]; ret_st.clst];
               context = initial_state.context} >>= fun _ ->
           return  ret_t) in
 
       let st_lst = (List.map typecheck_matchbr brlst) in 
-      (* Add constraints: Subexpr return type must match *)
+      (* Add constraints: Subexpr return type must match, i.e. match type of e1, e2, ..., en *)
       let subexpr_tslt = (List.map (fun st -> eval_state st initial_state) st_lst) in 
       let subexpr_clst = get_subexpr_clst subexpr_tslt in 
 
@@ -481,6 +489,7 @@ module TypeChecker = struct
       let helper (x_type: typ) (varty: int) : typ = ForallTy(varty, x_type) in 
       List.fold_left helper x_type varty_lst 
 
+    (* type pairing = | Pair of int * int has type (int*int) -> pairing *)
     and typecheck_typebinding (s: string) (tblst: typ_binding list): typ ConstrState.m =
       get >>= fun initial_state -> 
         let def_t = UserTy s in 
@@ -492,11 +501,13 @@ module TypeChecker = struct
       let constructor = fst tb in 
       match snd tb with 
       | None -> (constructor, def_t)
-      | Some t -> 
+      | Some constructor_vars -> 
         let tb_type = (
-          match t with 
-          | TupleTy tlst -> chain_tb_type tlst def_t
-          | _ -> raise (TypeError ("Type Binding's Constructor variable types should be defined like tuples "))
+          match constructor_vars with 
+          | TupleTy _ as t -> FuncTy(t, def_t)
+          | FuncTy _ | VarTy _ | ForallTy _  -> 
+            raise (TypeError ("Type Binding's Constructor variable types should be tuple of types or single type"))
+          | _ as t -> FuncTy(t, def_t)
         ) in 
         (constructor, tb_type)
 

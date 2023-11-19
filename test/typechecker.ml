@@ -156,14 +156,46 @@ let type_binding_tests = "test suite for typechecker on bindings" >::: [
     (fun _ -> assert_equal
         (UserTy "pairing")
         (typecheck_binding (List.hd (parse "type pairing = | Pair of int * int;;"))));
-            
-    (* "match expression" >::
-    (fun _ -> assert_equal ~printer:show_typ
-        ([IntTy])
-        (typecheck (parse "
-        type pairing = | Pair of int * int | Single of int;;
+
+    "user-defined type constructor" >::
+    (fun _ -> assert_equal
+        ([UserTy "pairing"; UserTy "pairing"])
+        (typecheck (parse 
+        "type pairing = | Pair of int * int;;
+        let p = Pair (1, 2);;")));
+
+    "match expression combined" >::
+    (fun _ -> assert_equal
+        ([UserTy "pairing"; UserTy "pairing"; IntTy])
+        (typecheck (parse 
+        "type pairing = | Pair of int * int | Single of int | Nothing ;;
         let p = Pair (1, 2);;
-        let res = match p with | Pair x, y => x + y | Single x => x;;"))); *)
+        let res = match p with | Pair (x, y) => x + y | Single x => x | Nothing => 0;;")));
+
+    "match expression, multiple pvar" >::
+    (fun _ -> assert_equal
+        ([UserTy "pairing"; UserTy "pairing"; IntTy])
+        (typecheck (parse 
+        "type pairing = | Pair of int * int;;
+        let p = Pair (1, 2);;
+        let res = match p with | Pair (x, y) => x + y ;;")));
+
+    "match expression, single pvar" >::
+    (fun _ -> assert_equal
+        ([UserTy "test"; UserTy "test"; IntTy])
+        (typecheck (parse 
+        "type test = | A of int | B of bool;;
+        let a = A 1;;
+        let res = match a with | A i => i | B j => 0 ;;")));
+
+    "match expression, no pvar" >::
+    (fun _ -> assert_equal
+        ([UserTy "test"; UserTy "test"; BoolTy])
+        (typecheck (parse 
+        "type test = | A | B;;
+        let p = A;;
+        let res = match p with | A => true | B => false ;;")));
+            
 ]
 
 
