@@ -44,7 +44,7 @@
 %token <string> String  (** String literal *)
 %token EOF              (** End-of-file - you can ignore this *)
 
-%nonassoc Arrow /* Function type -> has lower precedence than tuple type * */
+%right Arrow /* Function is right assoc. Function type -> has lower precedence than tuple type * */
 %nonassoc DoubleArrow In Else /* Match, Let, Else statement all have lower precendence than +-* */
 %left Or
 %left And

@@ -205,6 +205,11 @@ let parse_typ_tests = "test suite for parser (top level bindings)" >::: [
     (fun _ -> assert_equal ~printer:show_typ
         (parse_type "(int * int) -> (int * int)")
         (parse_type "int * int -> int * int"));
+
+    "function association" >::
+    (fun _ -> assert_equal ~printer:show_typ
+        (FuncTy(IntTy, FuncTy(IntTy, IntTy)))
+        (parse_type "int -> int -> int"));
 ]
 
 let type_expr_tests = "test suite for typechecker on expressions" >::: [
@@ -277,10 +282,15 @@ let type_expr_tests = "test suite for typechecker on expressions" >::: [
     | TypeError _ -> assert_bool "" true
     | _ -> assert_failure "Unexpected error");
     
-    "add function association" >::
+    "function association: multiple arg" >::
     (fun _ -> assert_equal ~printer:show_typ
         (FuncTy (IntTy, FuncTy(IntTy, IntTy)))
         (typecheck_expr (parse_expr "fun x y : int => x + y")));
+
+    "function association: return function" >::
+    (fun _ -> assert_equal ~printer:show_typ
+        (FuncTy (IntTy, FuncTy(IntTy, IntTy)))
+        (typecheck_expr (parse_expr "fun (x : int) => (fun a : int => x + a)")));
 
     "match expr (nested expr, pattern vars)" >::
     (fun _ -> assert_equal ~printer:show_typ
@@ -315,13 +325,16 @@ let type_expr_tests = "test suite for typechecker on expressions" >::: [
         (TupleTy [IntTy; UnitTy])
         (typecheck_expr (parse_expr "let id x = x in (id 2, id ())")));
 
-   (*  "application convoluted" >::
-    (fun _ -> assert_equal ~printer:show_typ
-        (FuncTy( FuncTy(IntTy, IntTy), FuncTy(IntTy, IntTy) ))
-        (typecheck_expr (parse_expr "
-        let f = fun x : int => 2 * x in
-        fun f => (fun a : int => (f a))"))); *)
+    "ill-typed" >::
+    (fun _ -> try
+        let _ = typecheck_expr (parse_expr "
+        let f = fun (x:int) => (fun (y:bool) => ()) in f 3 ()") in
+        assert_failure "'let f = fun (x:int) => (fun (y:bool) => ()) in f 3 ()' passed the typechecker"
+    with
+    | TypeError _ -> assert_bool "" true
+    | _ -> assert_failure "Unexpected error");
 
+    
 ]
 
 let type_tests = "test suite for typechecker" >::: [
@@ -341,29 +354,12 @@ let type_tests = "test suite for typechecker" >::: [
         ([FuncTy(IntTy, BoolTy); BoolTy])
         (typecheck (parse
         "let f x = if x < 0 then true else false;;
-            let result = f 1;;")));
+        let result = f 1;;")));
         (*
     "function with tuple type" >::
     (fun _ -> assert_equal ~printer:show_typ
         (typecheck (parse "(int * int) -> (int * int）"))
         (typecheck (parse "fun (x, y) => (x+1, y+1)")));
-
-    "ill-typed" >::
-        (fun _ -> try
-            let _ = typecheck (parse "
-            let f = fun (x:int) => (fun (y:bool) => ()) in f 3 ()") in
-            assert_failure "'let f = fun (x:int) => (fun (y:bool) => ()) in f 3 ()' passed the typechecker"
-        with
-        | TypeError _ -> assert_bool "" true
-        | _ -> assert_failure "Unexpected error");
-
-    "apply inside lambda" >::
-        (fun _ -> try
-            let _ = typecheck (parse "fun x => x y") in
-            assert_failure "'fun x => x y' passed the typechecker"
-        with
-        | TypeError _ -> assert_bool "" true
-        | _ -> assert_failure "Unexpected error");
 
     "match expression" >::
     (fun _ -> assert_equal ~printer:show_typ
