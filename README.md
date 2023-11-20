@@ -65,6 +65,24 @@ not
 (Lowest precedence)
 ```
 
+**Type Checker**
+
+OCaml-lite uses a Hindley-Milner type system, so we implement a unification based type inference algorithm. This project uses the State monad to manage the typing constraints and context. The type inference rules are as follows: 
+
+```
+(x, t) in G         G |- e1 : t1 -> t2    G |- e2 : t1
+----------- (Var)   ---------------------------------- (App)
+G |- x : t                   G |- e1 e2 : t2
+
+{(x, t1)} U G |- e : t2          G |- e1 : s    {(x, s)} U G |- e2 : t
+----------------------- (Abs)    ------------------------------------- (Let)
+G |- & x . e : t1 -> t2                G |- let x = e1 in e2 : t
+
+G |- e : forall a. s           G |- e : s    a not free in G
+-------------------- (Inst)    ----------------------------- (Gen)
+   G |- e : s[t/a]                  G |- e : forall a. s
+```
+
 ### Notes on parser generator
 
 The parser generator has a shift/reduce conflict due to ambiguous grammar of parsing match branches. Luckily, the parser arbitrary resolves the conflict to yield the desired behavior. 
