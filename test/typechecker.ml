@@ -106,6 +106,11 @@ let type_expr_tests = "test suite for typechecker on expressions" >::: [
         (IntTy)
         (typecheck_expr (parse_expr "let f x y : int = x + 2 * y in f 1 2")));
 
+    "function def with let expr" >::
+    (fun _ -> assert_equal ~printer:show_typ
+        (FuncTy(IntTy, (FuncTy (IntTy, IntTy))))
+        (typecheck_expr (parse_expr "let f x y : int = x + 2 * y in f")));
+
     "application with let expr equals function" >::
     (fun _ -> assert_equal ~printer:show_typ
         (IntTy)
@@ -195,7 +200,22 @@ let type_binding_tests = "test suite for typechecker on bindings" >::: [
         "type test = | A | B;;
         let p = A;;
         let res = match p with | A => true | B => false ;;")));
-            
+
+    "function currying: definition" >::
+    (fun _ -> assert_equal
+        (typecheck (parse 
+        "let f x y = x + y;;"))
+        (typecheck (parse 
+        "let f = fun x => fun y => x + y;;")));
+
+    "function currying: application" >::
+    (fun _ -> assert_equal
+        ([FuncTy(IntTy, FuncTy(IntTy, IntTy)); 
+            FuncTy(IntTy, IntTy)])
+        (typecheck (parse 
+        "let f = fun x => fun y => x + y;;
+        let g = f 3;;")));
+        
 ]
 
 

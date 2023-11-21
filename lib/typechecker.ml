@@ -480,10 +480,10 @@ module TypeChecker = struct
         return gen_x_type
 
     and generalize (context_lst: context list) (x_type: typ) : typ = 
-      (* Get all varty free in the x_type constraint *)
+      (* Get all varty that appear in the x_type constraint *)
       let varty_lst = get_varty x_type in 
       let varty_lst = List.sort_uniq compare varty_lst in
-      (* Remove varty that are not free in context *)
+      (* Remove varty that appear in context *)
       let varty_lst = remove_varty varty_lst context_lst in 
       (* Apply Forall to each free var *)
       let helper (x_type: typ) (varty: int) : typ = ForallTy(varty, x_type) in 
