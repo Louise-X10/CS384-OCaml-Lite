@@ -1,49 +1,60 @@
 open OUnit2
-(* open Ocaml_lite.Lexer
+open Ocaml_lite.Lexer
+open Ocaml_lite.Interpret
+(* 
 open Ocaml_lite.Ast *)
 
 
-let interp_tests = "test suite for interpretor" >::: [
-  (* 
+let interp_expr_tests = "test suite for interpretor on expressions" >::: [
+   
   "arithmetic computations" >::
   (fun _ -> assert_equal
-      (CInt 2)
-      (interpret "(1 / 2 + 3 * 4 - 4 ) mod 6"));
-
+      (VInt 2)
+      (interp_expr (parse_expr "(1 / 2 + 3 * 4 - 4 ) mod 6")));
+    
   "comparisons" >::
   (fun _ -> assert_equal
-      (CBool true)
-      (interpret "2 + 3 < 7 = true"));
+      (VBool true)
+      (interp_expr (parse_expr "(2 + 3 < 7) = true")));
 
   "logic expressions" >::
   (fun _ -> assert_equal
-      (CBool true)
-      (interpret "not true && false || true"));
+      (VBool true)
+      (interp_expr (parse_expr "not true && false || true")));
 
   "string concat" >::
   (fun _ -> assert_equal
-      (CString "helloworld")
-      (interpret " \"hello\" ^ \"world\" "));
+      (VString "helloworld")
+      (interp_expr (parse_expr " \"hello\" ^ \"world\" ")));
 
   "integer negate" >::
   (fun _ -> assert_equal
-      (CInt 1)
-      (interpret  "~1 + 2"));
+      (VInt 1)
+      (interp_expr (parse_expr  "~1 + 2")));
 
+    (* "ill-typed" >::
+    (fun _ -> try
+        let _ = interp_expr (parse_expr "1 || true") in
+        assert_failure "'1 || true' passed the interpretor"
+    with
+    | InterpError _ -> assert_bool "" true
+    | _ -> assert_failure "Unexpected error"); *)
+
+(*
   "if expression" >::
   (fun _ -> assert_equal
       (CBool true)
-      (interpret  "if 2 < 3 then true else false"));
+      (interp_expr (parse_expr  "if 2 < 3 then true else false")));
 
   "let expression, with type" >::
   (fun _ -> assert_equal
       (CInt 1)
-      (interpret  "let x : int = 0 in x + 1"));
+      (interp_expr (parse_expr  "let x : int = 0 in x + 1")));
 
   "let expression, no type" >::
   (fun _ -> assert_equal
       (CInt 1)
-      (interpret  "let x = 0 in x + 1"));
+      (interp_expr (parse_expr  "let x = 0 in x + 1")));
 
   "let binding, with type" >::
   (fun _ -> assert_equal
@@ -124,6 +135,12 @@ let interp_tests = "test suite for interpretor" >::: [
    *)  
   ]
 
- let interp_tests = "test_suite for interpretor" >::: [
-  (* interpret_tests; *)
+  let interp_binding_tests = "test suite for interpretor on bindings" >::: [
+
+    
+  ]
+
+  let interp_tests = "test_suite for interpretor" >::: [
+  interp_expr_tests;
+  interp_binding_tests;
 ]
