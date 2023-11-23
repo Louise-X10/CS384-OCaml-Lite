@@ -23,6 +23,7 @@ module State (S : sig type state end) : sig
   val run_state : 'a m -> S.state -> 'a * S.state
   val eval_state : 'a m -> S.state -> 'a
   val exec_state : 'a m -> S.state -> S.state
+  val chain_states: 'a m list -> S.state -> 'a list * S.state
 end = struct
   open S
   type 'a m = state -> 'a * state  (* given current state -> return value * modified resulting state *)
@@ -35,6 +36,18 @@ end = struct
   let run_state (x : 'a m) (st : state) : 'a * state = x st
   let eval_state (x : 'a m) (st : state) : 'a = fst (x st)
   let exec_state (x : 'a m) (st : state) : state = snd (x st)
+  
+  (* Apply list of states in order, then return list of return values + current state *)
+  let rec chain_states (st_lst: 'a m list) (init_st: state): 'a list * state = 
+    match st_lst with 
+    | [] -> failwith "Error in chaining binding states"
+    | [st] -> 
+      let b_typ, b_st = run_state st init_st in 
+      [b_typ], b_st
+    | st :: tail -> 
+      let b_typ, b_st = run_state st init_st in 
+      let b_typs, ret_st = chain_states tail b_st in 
+      b_typ :: b_typs, ret_st
 end
 
 module TypeChecker = struct
@@ -238,19 +251,6 @@ module TypeChecker = struct
     match t with 
     | None -> []
     | Some t -> [(ret_t, t)]
-  
-  (* Helper: chain multiple binding type contexts in order 
-     Return list of binding types and current state after chaining *)
-  let rec chain_states (st_lst: typ ConstrState.m list) (init_st: constr_state): typ list * constr_state = 
-    match st_lst with 
-    | [] -> failwith "Error in chaining binding states"
-    | [st] -> 
-      let b_typ, b_st = run_state st init_st in 
-      [b_typ], b_st
-    | st :: tail -> 
-      let b_typ, b_st = run_state st init_st in 
-      let b_typs, ret_st = chain_states tail b_st in 
-      b_typ :: b_typs, ret_st
 
   let rec typeof_program (blst: program): typ list = 
     let st_lst = List.map typecheck_binding blst in 
