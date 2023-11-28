@@ -169,15 +169,16 @@ let interp_expr_tests = "test suite for interpretor on expressions" >::: [
         List.assoc "result" st.env
         ));
 
-    (* "nested match expression" >::
+    "nested match expression" >::
     (fun _ -> assert_equal
         (VInt 1)
         (let st = interp_program (parse  "
-        type pairing = | Pair of int * int | Single of int;;
-        let p : pairing = Pair (Single 1, Single 2);;
-        let result = match p with Pair (x, y) => match x with | Single i => i ;;") in 
+        type pairing = | Pair of num * num | Single of num;;
+        type num = | Odd | Even;;
+        let p : pairing = Pair (Odd, Even);;
+        let result = match p with | Pair (x, y) => match x with | Odd => 1 | Even => ~1;;") in 
         List.assoc "result" st.env
-        )); *)
+        ));
   ]
   let interp_binding_tests_ll = "test suite for interpretor on bindings (low-level)" >::: [
 
