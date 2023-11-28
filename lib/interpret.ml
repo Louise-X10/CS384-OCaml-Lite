@@ -45,10 +45,10 @@ let rec valueof_expr (e:expr) :value =
   let ret_v = eval_state st empty_st in 
   ret_v *)
 
-and valueof_program (blst:program) :value list = 
+and envof_program (blst:program) :interp_state = 
   let st_lst = List.map interp_binding blst in 
-  let ret_vals, _ = chain_states st_lst empty_st in 
-  ret_vals
+  let _, ret_env = chain_states st_lst empty_st in 
+  ret_env
 
 and interp_expr: expr -> value InterpState.m = function
   | CInt i -> return (VInt i)
@@ -272,5 +272,5 @@ end
 let interp_expr (e: expr) : value = 
   Interpretor.valueof_expr e
 
-let interp_ (e:program) : value list = 
-  Interpretor.valueof_program e
+let interp_program (e:program) : Interpretor.interp_state = 
+  Interpretor.envof_program e
