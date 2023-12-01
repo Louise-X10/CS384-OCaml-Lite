@@ -83,6 +83,19 @@ G |- e : forall a. s           G |- e : s    a not free in G
    G |- e : s[t/a]                  G |- e : forall a. s
 ```
 
+**Interpretor**
+
+This project uses the State monad to manage the name-value bindings in the interpretor environment. The function evaluations are deferred until time of application, as shown below: 
+
+```
+----------------------------------
+E |- fun x => e1 ==> (E, "fun x => e1")
+
+E |- e1 ==> (E', "fun x => e3") E |- e2 ==> v1 E'[x -> v1] |- e3 ==> v2
+---------------------------------------------------------------------------
+E |- e1 e2 ==> v2
+```
+
 ### Notes on parser generator
 
 The parser generator has a shift/reduce conflict due to ambiguous grammar of parsing match branches. Luckily, the parser arbitrary resolves the conflict to yield the desired behavior. 
