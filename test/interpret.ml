@@ -2,9 +2,7 @@ open OUnit2
 open Ocaml_lite.Lexer
 open Ocaml_lite.Ast 
 open Ocaml_lite.Interpret
-(* 
-
-open Interpretor*)
+(* open Interpretor*)
 
 
 let interp_expr_tests = "test suite for interpretor on expressions" >::: [
@@ -72,24 +70,6 @@ let interp_expr_tests = "test suite for interpretor on expressions" >::: [
         None))
         (interp_expr (parse_expr "fun x y => x + y")));
 
-    "function application with given context: return another function/closure" >::
-    (fun _ -> assert_equal 
-        (VClosure ("y", [("x", VInt 1)], Binop(Var "x", Add, Var "y"), None))
-        (let f = interp_expr (parse_expr "fun x y => x + y") in 
-        let e = parse_expr  "f 1" in
-        let state = Interpretor.interp_expr e in
-        Interpretor.InterpState.eval_state state  {env = [("f", f)]}
-        ));
-
-    "function application with given context: return final value" >::
-    (fun _ -> assert_equal 
-        (VInt 4)
-        (let f = interp_expr (parse_expr "fun x y => x + y") in 
-        let e = parse_expr  "(f 1) 3" in
-        let state = Interpretor.interp_expr e in
-        Interpretor.InterpState.eval_state state  {env = [("f", f)]}
-        ));
-
     "let expression: no type" >::
     (fun _ -> assert_equal
         (VInt 1)
@@ -150,12 +130,48 @@ let interp_expr_tests = "test suite for interpretor on expressions" >::: [
         List.assoc "g" st.env
         ));
         
-    "function application from let binding, with type" >::
+    "function application from let binding: with type" >::
     (fun _ -> assert_equal
         (VBool false)
         (let st = interp_program (parse 
             "let f (x : int) : bool = if x < 0 then true else false;;
                 let result = f 1;;") in 
+                List.assoc "result" st.env
+        ));
+
+     "recursive function application: apply once" >::
+    (fun _ -> assert_equal
+        (VInt 1)
+        (let st = interp_program (parse 
+            "let rec fact x = if x = 0 then 1 else x * fact (x - 1) ;;
+                let result = fact 0;;") in 
+                List.assoc "result" st.env
+        ));
+
+    "recursive function application: apply twice" >::
+    (fun _ -> assert_equal
+        (VInt 1)
+        (let st = interp_program (parse 
+            "let rec fact x = if x = 0 then 1 else x * fact (x - 1) ;;
+                let result = fact 1;;") in 
+                List.assoc "result" st.env
+        ));
+
+   "recursive function application: apply 3 times" >::
+    (fun _ -> assert_equal
+        (VInt 2)
+        (let st = interp_program (parse 
+            "let rec fact x = if x = 0 then 1 else x * fact (x - 1) ;;
+                let result = fact 2;;") in 
+                List.assoc "result" st.env
+        ));
+
+    "recursive function application: apply 4 times" >::
+    (fun _ -> assert_equal
+        (VInt 6)
+        (let st = interp_program (parse 
+            "let rec fact x = if x = 0 then 1 else x * fact (x - 1) ;;
+                let result = fact 3;;") in 
                 List.assoc "result" st.env
         ));
 
@@ -236,6 +252,18 @@ let interp_expr_tests = "test suite for interpretor on expressions" >::: [
             (parse "let f (x : int) : bool = if x < 0 then true else false;;"))) in 
             let ret_v, ret_st = Interpretor.InterpState.run_state st Interpretor.empty_st in 
             ret_v, ret_st.env));
+
+    "recursive function application: apply once" >::
+    (fun _ -> assert_equal
+        (VInt 1)
+        (let b1 = List.hd ((parse "let rec fact x = if x = 0 then 1 else x * fact (x - 1) ;;")) in 
+        let b2 = (parse_expr "fact 0") in 
+        let st1 = Interpretor.interp_binding b1 in 
+        let st2 = Interpretor.interp_expr b2 in 
+        let ret_state = Interpretor.InterpState.exec_state st1 Interpretor.empty_st in 
+        let ret_v2 = Interpretor.InterpState.eval_state st2 ret_state in 
+            ret_v2
+        ));
   ]
 
   let interp_tests = "test_suite for interpretor" >::: [

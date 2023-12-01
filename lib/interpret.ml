@@ -72,7 +72,6 @@ and interp_expr: expr -> value InterpState.m = function
       (match v_opt with | Some v -> v | None -> raise (InterpError ("Can't find variable " ^ s ^ " in environment"))) in 
       return ret_v
     )
-  | _ -> failwith "undefined"
 
 (* Helper: get value of expression with given initial state *)
 and value_fromst (e:expr) (state: interp_state) :value = 
@@ -162,10 +161,8 @@ and interp_matchexp (e: expr) (brlst: matchbranch list): value InterpState.m =
       | _ -> raise (InterpError "Match expression is not user-defined type") in 
     let c, arg_vlst = extract_vuser v in 
     let find_matchbr (br: matchbranch): bool = 
-      ( match br with 
-      | MatchBr(s, _, _) -> if s = c then true else false
-      | _ -> raise (InterpError "Match branch parse error")
-      ) in 
+      let MatchBr(s, _, _) = br in 
+      if s = c then true else false in 
     let br = List.find find_matchbr brlst in 
     (* Assign arg_vlst to pvars, add to interp_state, evaluate br_e *)
     match br with 
@@ -174,12 +171,11 @@ and interp_matchexp (e: expr) (brlst: matchbranch list): value InterpState.m =
       return (value_fromst br_e branch_st)
     | MatchBr(_, None, br_e) -> 
       return (value_fromst br_e initial_st)
-    | _ -> raise (InterpError "Match branch parse error")
 
 (* Evaluate e1 e2 in initial state. 
     If v1 is a type constructor, apply v2 as args, return v. 
     If v1 is closure, apply v2 as single arg, either return resulting v or another closure. 
-    !!If v1 is recursive closure, add closure to function env.
+    If v1 is recursive closure, add closure_name to env, apply v2 as arg.
 *)
 and interp_app (e1: expr) (e2: expr): value InterpState.m = 
   get >>= fun initial_st ->
@@ -197,11 +193,14 @@ and interp_app (e1: expr) (e2: expr): value InterpState.m =
         let ret_closure = value_fromst closure_exp {env=closure_env} in 
         let ret_closure = add_closure_env ret_closure arg v2 in 
         ret_closure
-      (* Otherwise, add arg-v2 binding to closure env, then evaluate closure body *)
+      (* Otherwise, add arg-v2 binding to closure env, then evaluate closure body along with initial state env *)
       | _ -> 
-        value_fromst closure_exp {env = (arg, v2):: closure_env}
+        value_fromst closure_exp {env = (arg, v2):: closure_env @ initial_st.env}
       )
-      | VClosure(arg, closure_env, closure_exp, Some closure_name) -> failwith "undefined"
+    (* If v1 is recursive function, then add closure_name=closure, arg-v2 to state env, then evaluate closure exp *)
+    | VClosure(arg, closure_env, closure_exp, Some closure_name) -> 
+      let rec_closure_env = {env=(closure_name, VClosure(arg, closure_env, closure_exp, None))::(arg, v2)::closure_env @ initial_st.env} in 
+      value_fromst closure_exp rec_closure_env
     | _ -> raise (InterpError "Expression is not function or constructor, cannot be applied")
   ) in 
   return ret_v
@@ -214,7 +213,7 @@ and interp_function (plst: param list) (t: typ option) (e: expr) (name_opt: stri
   get >>= fun initial_st ->
     (* Extract first arg into closure *)
     match plst with 
-    | [arg] -> return (VClosure (arg.name, initial_st.env, e, None))
+    | [arg] -> return (VClosure (arg.name, initial_st.env, e, name_opt))
     | arg :: args -> return (VClosure (arg.name, initial_st.env, Function(args, t, e), name_opt))
     | [] -> raise (InterpError "Function has no parameters")
 
@@ -236,7 +235,7 @@ and interp_binding: binding -> value InterpState.m = function
 and interp_letbinding (x: string) (b:bool) (plst: param list) (t:typ option) (e1: expr): value InterpState.m = 
   get >>= fun initial_st -> 
     (* If recursive, generate rec func name *)
-    (* !! Check that cannot have recursive let with no plst? *)
+    (* Assume that cannot have recursive let with no plst *)
     let closure_name: string option = if b = true then Some x else None in 
     let v1 = 
       (* If there is plst, interp like a function *)
@@ -247,7 +246,7 @@ and interp_letbinding (x: string) (b:bool) (plst: param list) (t:typ option) (e1
     return VUnit
 
 (* Add typ constructors to env, return unit value *)
-and interp_typebinding (s: string) (tblst: typ_binding list): value InterpState.m = 
+and interp_typebinding (_: string) (tblst: typ_binding list): value InterpState.m = 
   (* Get constructor - VConstructor value binding *)
   let get_typ_constructor_val (tb: typ_binding): string * value = 
     let constructor, args_opt = tb in 
