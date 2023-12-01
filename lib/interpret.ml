@@ -14,6 +14,7 @@ and value =
   | VConstructor of string * (value -> value)
   (* user-defined constructed value: constructor name * arguments *)
   | VUser of string * value list
+  | VBuiltin of string
 
 module Interpretor = struct 
   type interp_state = {env: env}
@@ -66,8 +67,11 @@ and interp_expr: expr -> value InterpState.m = function
   (* For variable, look in context first, if not there then invalid *)
   | Var s -> 
     (match s with 
-    | _ -> get >>= fun st ->
-      let v_opt = List.assoc_opt s st.env in 
+    | "int_of_string" -> return (VBuiltin ("int_of_string"))
+    | "string_of_int" -> return (VBuiltin ("string_of_int"))
+    | "print_string" -> return (VBuiltin ("print_string"))
+    | _ -> get >>= fun initial_st ->
+      let v_opt = List.assoc_opt s initial_st.env in 
       let ret_v = 
       (match v_opt with | Some v -> v | None -> raise (InterpError ("Can't find variable " ^ s ^ " in environment"))) in 
       return ret_v
@@ -185,6 +189,14 @@ and interp_app (e1: expr) (e2: expr): value InterpState.m =
   (match v1 with 
     (* If v1 is constructor, apply v2 (can be tuple) as args to constructor *)
     | VConstructor(_, constructor_func) -> constructor_func v2
+    (* If v1 is buildin function, directly apply v2 *)
+    | VBuiltin("int_of_string") -> 
+      let (VString s) = v2 in VInt (int_of_string s)
+    | VBuiltin("string_of_int") -> 
+      let (VInt i) = v2 in VString (string_of_int i)
+    | VBuiltin("print_string") -> 
+      let (VString s) = v2 in 
+      let _ = print_endline s in VUnit
     (* If v1 is function, then evaluate closure body with binding arg=v2 *)
     | VClosure(arg, closure_env, closure_exp, None) -> 
       (match closure_exp with
@@ -273,3 +285,6 @@ let interp_expr (e: expr) : value =
 
 let interp_program (e:program) : Interpretor.interp_state = 
   Interpretor.envof_program e
+
+let interpret (e:program) : unit = 
+  let _ = Interpretor.envof_program e in ()

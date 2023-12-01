@@ -88,6 +88,21 @@ let interp_expr_tests = "test suite for interpretor on expressions" >::: [
         (VBool false)
         (interp_expr (parse_expr 
             "let f (x : int) : bool = if x < 0 then true else false in f 1")));
+
+    "built-in int_of_string" >::
+    (fun _ -> assert_equal
+        (VInt 1)
+        (interp_expr (parse_expr "let i = int_of_string \"1\" in i")));
+    
+    "built-in string_of_int" >::
+    (fun _ -> assert_equal
+        (VString "1")
+        (interp_expr (parse_expr "let s = string_of_int 1 in s")));
+
+    "built-in print_string" >::
+    (fun _ -> assert_equal
+        (VUnit)
+        (interp_expr (parse_expr "let a = print_string \"test print_string\" in a")));
   ]
   let interp_binding_tests_hl = "test suite for interpretor on bindings (high-level)" >::: [
 
