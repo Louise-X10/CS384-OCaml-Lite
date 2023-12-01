@@ -2,7 +2,7 @@ type binding =
   | LetB of string * bool * param list * typ option * expr (* let rec? $id [<param>]* [: <type>] = <expr> *)
   | TypeB of string * typ_binding list (* type $id = ['|' $id [of <type>]]+ *)
 
-and typ_binding = string * typ option
+and typ_binding = string * typ option (* $id [of <type>], note that <type> can be tuple*)
 
 and expr =
   (* Binary operations *)
