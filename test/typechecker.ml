@@ -7,12 +7,12 @@ let type_expr_tests = "test suite for typechecker on expressions" >::: [
 
     "built-in int_of_string" >::
     (fun _ -> assert_equal ~printer:show_typ
-        (FuncTy (IntTy, StringTy))
+        (FuncTy (StringTy, IntTy))
         (typecheck_expr (parse_expr "int_of_string")));
 
     "built-in string_of_int" >::
     (fun _ -> assert_equal ~printer:show_typ
-        (FuncTy (StringTy, IntTy))
+        (FuncTy (IntTy, StringTy))
         (typecheck_expr (parse_expr "string_of_int")));
 
     "built-in print_string" >::

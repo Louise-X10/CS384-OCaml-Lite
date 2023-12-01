@@ -291,8 +291,8 @@ module TypeChecker = struct
     | Var s -> 
       (
         match s with 
-        | "int_of_string" -> return (FuncTy (IntTy, StringTy))
-        | "string_of_int" -> return (FuncTy (StringTy, IntTy))
+        | "int_of_string" -> return (FuncTy (StringTy, IntTy))
+        | "string_of_int" -> return (FuncTy (IntTy, StringTy))
         | "print_string" -> return (FuncTy (StringTy, UnitTy))
         | _ -> get >>= fun st ->
           let ty = List.assoc_opt s st.context in 
