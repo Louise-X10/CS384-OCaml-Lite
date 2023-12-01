@@ -135,7 +135,29 @@ let type_expr_tests = "test suite for typechecker on expressions" >::: [
     | TypeError _ -> assert_bool "" true
     | _ -> assert_failure "Unexpected error");
 
-    
+    "convoluted example" >::
+    (fun _ -> assert_equal ~printer:show_typ
+        (IntTy)
+        (typecheck_expr (parse_expr "let maybe f x y = if x then f y else y in maybe (fun x => x + 1) true 1")));
+
+    "ill-typed example" >::
+    (fun _ -> try
+        let _ = typecheck_expr (parse_expr "let f x = x + 1 in f ()") in
+        assert_failure "'let f x = x + 1 in f ()' passed the typechecker"
+    with
+    | TypeError _ -> assert_bool "" true
+    | _ -> assert_failure "Unexpected error");
+
+    "convoluted example2" >::
+    (fun _ -> assert_equal ~printer:show_typ
+        (TupleTy [UnitTy; IntTy])
+        (typecheck_expr (parse_expr "let twice f x = f (f x) in (twice (fun x => ()) (), twice (fun x => x + 1) 1)")));
+
+    "multiple generalization" >::
+    (fun _ -> assert_equal ~printer:show_typ
+        (parse_type "(int * bool) * (string * bool)")
+        (typecheck_expr (parse_expr "let twice x y = (x, y) in
+        (twice 1 true, twice \"hello\" false)")));
 ]
 
 let type_binding_tests = "test suite for typechecker on bindings" >::: [
@@ -215,7 +237,6 @@ let type_binding_tests = "test suite for typechecker on bindings" >::: [
         (typecheck (parse 
         "let f = fun x => fun y => x + y;;
         let g = f 3;;")));
-        
 ]
 
 
