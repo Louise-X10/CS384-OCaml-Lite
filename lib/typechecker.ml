@@ -473,14 +473,26 @@ module TypeChecker = struct
             then {clst = initial_st.clst; 
                   context = merge_context[[(x, fresh_var ())]; initial_st.context]} 
             else initial_st) in
-        (* If there is plst, then check like a function. Otherwise, check like an expression *)
+        (* Get return type of x, and current state after typechecking e1 *)
         let x_type, e1_st = 
-          if List.length plst > 0 then run_state (typecheck_function plst t e1) e1_initial_st else 
-            let e1_type, e1_temp_st = run_state (typecheck_expr e1) e1_initial_st in 
-            (* Add optional user constraint on return type *)
-            let e1_ret_st = {clst = merge_clst[(get_ret_constraint t e1_type); e1_temp_st.clst]; 
-            context = e1_temp_st.context} in 
-            e1_type, e1_ret_st in 
+        (* If there is plst, then check like a function. Otherwise, check like an expression *)
+          if List.length plst > 0 
+            then (run_state (typecheck_function plst t e1) e1_initial_st)
+            else (
+              let e1_type, e1_temp_st = run_state (typecheck_expr e1) e1_initial_st in 
+              (* Add optional user constraint on return type *)
+              let e1_ret_st = {clst = merge_clst[(get_ret_constraint t e1_type); e1_temp_st.clst]; 
+              context = e1_temp_st.context} in 
+              e1_type, e1_ret_st) 
+        in 
+        (* If recursive, add return type constraint before unifying:
+           x-type given initially (ret_t) = returned x-type *)
+        let e1_st = 
+          (if b = true
+            then let ret_t = List.assoc x e1_st.context in 
+                            {clst = (ret_t, x_type)::e1_st.clst; context = e1_st.context} 
+            else e1_st
+          ) in 
         (* Unify then generalize. The substitutions from unifying should be added to return constraint list *)
         let x_type, ret_clst = unify_letbinding e1_st.clst x_type in 
         let gen_x_type = generalize e1_st.context x_type in
