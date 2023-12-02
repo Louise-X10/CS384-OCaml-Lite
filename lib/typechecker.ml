@@ -208,10 +208,12 @@ module TypeChecker = struct
 
   (* Helper (for matchexp): Get context from constructor and pattern vars  *)
   let get_pvar_context (plst_opt: pattern_vars option) (constructor_type: typ): context list = 
-    (* Assign each pvar in plst to a type in pvars_tlst *)
-    let rec helper (plst: pattern_vars) (pvars_tlst: typ list): context list = 
+    (* Assign each pvar in plst to a type in constructor pvars_tlst *)
+    let rec helper (plst: string list) (pvars_tlst: typ list): context list = 
+      if List.length plst <> List.length pvars_tlst then raise (TypeError ("Number of pattern variables given in match branch doesn't match definition of specifed type constructor"))
+      else 
       (match pvars_tlst with 
-      | [] -> if plst <> [] then raise (TypeError ("Not enough pattern variables for type constructor")) else []
+      | [] -> []
       | ti::[]->  [(List.hd plst, ti)]
       | t1 :: tail -> (List.hd plst, t1) :: helper (List.tl plst) tail
       ) in 

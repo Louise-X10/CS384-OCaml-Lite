@@ -88,7 +88,7 @@ let type_expr_tests = "test suite for typechecker on expressions" >::: [
         (IntTy)
         (let e = parse_expr  "match p with | Pair (x, y) => x + y" in
         let st = TypeChecker.typecheck_expr e in
-        TypeChecker.ConstrState.eval_state st  {clst = []; context = [("Pair", FuncTy(IntTy, FuncTy(IntTy, UserTy "pairing_type")))]}
+        TypeChecker.ConstrState.eval_state st  {clst = []; context = [("Pair", FuncTy(TupleTy([IntTy; IntTy]), UserTy "pairing_type"))]}
         ));
 
     "let expr, no params, no type annotation" >::
@@ -199,7 +199,7 @@ let type_binding_tests = "test suite for typechecker on bindings" >::: [
         let p = Pair (1, 2);;
         let res = match p with | Pair (x, y) => x + y | Single x => x | Nothing => 0;;")));
 
-    "match expression, multiple pvar" >::
+    "match expression: multiple pvar" >::
     (fun _ -> assert_equal
         ([UserTy "pairing"; UserTy "pairing"; IntTy])
         (typecheck (parse 
@@ -207,7 +207,7 @@ let type_binding_tests = "test suite for typechecker on bindings" >::: [
         let p = Pair (1, 2);;
         let res = match p with | Pair (x, y) => x + y ;;")));
 
-    "match expression, single pvar" >::
+    "match expression: single pvar" >::
     (fun _ -> assert_equal
         ([UserTy "test"; UserTy "test"; IntTy])
         (typecheck (parse 
@@ -215,7 +215,7 @@ let type_binding_tests = "test suite for typechecker on bindings" >::: [
         let a = A 1;;
         let res = match a with | A i => i | B j => 0 ;;")));
 
-    "match expression, no pvar" >::
+    "match expression: no pvar" >::
     (fun _ -> assert_equal
         ([UserTy "test"; UserTy "test"; BoolTy])
         (typecheck (parse 
@@ -237,6 +237,16 @@ let type_binding_tests = "test suite for typechecker on bindings" >::: [
         (typecheck (parse 
         "let f = fun x => fun y => x + y;;
         let g = f 3;;")));
+
+    "match expression: mismatched pvar" >::
+    (fun _ -> try
+        let _ = typecheck (parse 
+        "type t = | A of int;;
+        let f x = match x with | A (a, b) => 0;;") in
+        assert_failure "mismatched pvar in match branch passed the typechecker"
+    with
+    | TypeError _ -> assert_bool "" true
+    | _ -> assert_failure "Unexpected error");
 ]
 
 
