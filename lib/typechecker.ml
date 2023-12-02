@@ -296,7 +296,7 @@ module TypeChecker = struct
     | CString _ -> return StringTy
     | CBool _ -> return BoolTy
     | Unit -> return UnitTy
-    (* For variable, look in context first, if not there / is free then gen new type var and add to context *)
+    (* For variable, look in context first, if not there / is free then throw error *)
     | Var s -> 
       (
         match s with 
@@ -305,10 +305,10 @@ module TypeChecker = struct
         | "print_string" -> return (FuncTy (StringTy, UnitTy))
         | _ -> get >>= fun st ->
           let ty = List.assoc_opt s st.context in 
-          let s_type = 
-          (match ty with | Some t -> t | None -> fresh_var ()) in 
-          let new_context = 
-          (match ty with | Some _ -> st.context | None -> (s, s_type) :: st.context) in 
+          let s_type, new_context = 
+          (match ty with 
+          | Some t -> t, st.context
+          | None -> raise(TypeError ("Variable " ^ s ^ " is unbound in context"))) in 
           put {clst = st.clst; context = new_context } >>= fun _ ->
           return s_type
       )
@@ -481,10 +481,10 @@ module TypeChecker = struct
             let e1_ret_st = {clst = merge_clst[(get_ret_constraint t e1_type); e1_temp_st.clst]; 
             context = e1_temp_st.context} in 
             e1_type, e1_ret_st in 
-        (* Unify then generalize *)
+        (* Unify then generalize. The substitutions from unifying should be added to return constraint list *)
         let x_type, ret_clst = unify_letbinding e1_st.clst x_type in 
         let gen_x_type = generalize e1_st.context x_type in
-        (* Add generalized type to context. No clst after unify *)
+        (* Add generalized type to context. *)
         put { clst = ret_clst; 
               context = merge_context [[(x, gen_x_type)]; initial_st.context] } >>= fun _ -> 
         return gen_x_type

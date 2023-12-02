@@ -88,7 +88,9 @@ let type_expr_tests = "test suite for typechecker on expressions" >::: [
         (IntTy)
         (let e = parse_expr  "match p with | Pair (x, y) => x + y" in
         let st = TypeChecker.typecheck_expr e in
-        TypeChecker.ConstrState.eval_state st  {clst = []; context = [("Pair", FuncTy(TupleTy([IntTy; IntTy]), UserTy "pairing_type"))]}
+        TypeChecker.ConstrState.eval_state st  {clst = []; 
+                context = [("Pair", FuncTy(TupleTy([IntTy; IntTy]), UserTy "pairing_type"));
+                            ("p", UserTy "pairing_type")]}
         ));
 
     "let expr, no params, no type annotation" >::
@@ -238,7 +240,7 @@ let type_binding_tests = "test suite for typechecker on bindings" >::: [
         "let f = fun x => fun y => x + y;;
         let g = f 3;;")));
 
-    "match expression: mismatched pvar" >::
+    "ill-typed: mismatched pvar in match branch" >::
     (fun _ -> try
         let _ = typecheck (parse 
         "type t = | A of int;;
@@ -255,6 +257,15 @@ let type_binding_tests = "test suite for typechecker on bindings" >::: [
     with
     | TypeError "Unification failed" -> assert_bool "" true
     | _ -> assert_failure "Unexpected error");
+
+    "ill-typed: undefined constructor" >::
+    (fun _ -> try
+        let _ = typecheck (parse "let a = Pair (1, 2);;") in
+        assert_failure "ill-typed undefined constructor passed the typechecker"
+    with
+    | TypeError "Variable Pair is unbound in context" -> assert_bool "" true
+    | _ -> assert_failure "Unexpected error");
+
     
 ]
 
