@@ -165,6 +165,13 @@ module TypeChecker = struct
     let ret_t = apply_subst res_slst t in 
     ret_t
 
+  (* Unify constraint list to give actual return type, and additional constraints that should be passed on *)
+  let unify_letbinding (clst: constr list) (t: typ): typ * constr list= 
+    let res_clst, res_slst = unify_multiple_constr clst [] in 
+    (* Assert that res_clst must be empty *)
+    let _ = if res_clst = [] then () else (raise (TypeError ("Unresolved constraints remain!"))) in 
+    let ret_t = apply_subst res_slst t in 
+    ret_t, res_slst
   (* Helper: Merge multiple context lists without duplicates *)
   let merge_context (lst_of_context: context list list)  = 
     (* let comp = (fun (x, _) (y, _) -> String.compare x y) in *)
@@ -210,7 +217,7 @@ module TypeChecker = struct
   let get_pvar_context (plst_opt: pattern_vars option) (constructor_type: typ): context list = 
     (* Assign each pvar in plst to a type in constructor pvars_tlst *)
     let rec helper (plst: string list) (pvars_tlst: typ list): context list = 
-      if List.length plst <> List.length pvars_tlst then raise (TypeError ("Number of pattern variables given in match branch doesn't match definition of specifed type constructor"))
+      if List.length plst <> List.length pvars_tlst then raise (TypeError ("Number of pattern variables in match branch != defn of specifed type constructor"))
       else 
       (match pvars_tlst with 
       | [] -> []
@@ -475,10 +482,10 @@ module TypeChecker = struct
             context = e1_temp_st.context} in 
             e1_type, e1_ret_st in 
         (* Unify then generalize *)
-        let x_type = unify e1_st.clst x_type in 
+        let x_type, ret_clst = unify_letbinding e1_st.clst x_type in 
         let gen_x_type = generalize e1_st.context x_type in
         (* Add generalized type to context. No clst after unify *)
-        put { clst = []; 
+        put { clst = ret_clst; 
               context = merge_context [[(x, gen_x_type)]; initial_st.context] } >>= fun _ -> 
         return gen_x_type
 

@@ -245,8 +245,17 @@ let type_binding_tests = "test suite for typechecker on bindings" >::: [
         let f x = match x with | A (a, b) => 0;;") in
         assert_failure "mismatched pvar in match branch passed the typechecker"
     with
-    | TypeError _ -> assert_bool "" true
+    | TypeError "Number of pattern variables in match branch != defn of specifed type constructor" -> assert_bool "" true
     | _ -> assert_failure "Unexpected error");
+
+    "ill-typed: let binding" >::
+    (fun _ -> try
+        let _ = typecheck (parse "let _ = fun x => let y = x + 1 in x ();;") in
+        assert_failure "ill-typed recursive binding passed the typechecker"
+    with
+    | TypeError "Unification failed" -> assert_bool "" true
+    | _ -> assert_failure "Unexpected error");
+    
 ]
 
 
