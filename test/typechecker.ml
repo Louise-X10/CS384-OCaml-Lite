@@ -266,6 +266,14 @@ let type_binding_tests = "test suite for typechecker on bindings" >::: [
     | TypeError "Variable Pair is unbound in context" -> assert_bool "" true
     | _ -> assert_failure "Unexpected error");
 
+    "ill-typed: recusive function with no rec" >::
+    (fun _ -> try
+        let _ = typecheck (parse "let f x = if f (x - 1) < 0 then true else false;;") in
+        assert_failure "ill-typed recursive function with no rec passed the typechecker"
+    with
+    | TypeError "Variable f is unbound in context" -> assert_bool "" true
+    | _ -> assert_failure "Unexpected error");
+
     
 ]
 
