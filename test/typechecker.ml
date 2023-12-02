@@ -7,17 +7,17 @@ let type_expr_tests = "test suite for typechecker on expressions" >::: [
 
     "built-in int_of_string" >::
     (fun _ -> assert_equal ~printer:show_typ
-        (FuncTy (StringTy, IntTy))
+        (parse_type "string -> int")
         (typecheck_expr (parse_expr "int_of_string")));
 
     "built-in string_of_int" >::
     (fun _ -> assert_equal ~printer:show_typ
-        (FuncTy (IntTy, StringTy))
+        (parse_type "int -> string")
         (typecheck_expr (parse_expr "string_of_int")));
 
     "built-in print_string" >::
     (fun _ -> assert_equal ~printer:show_typ
-        (FuncTy (StringTy, UnitTy))
+        (parse_type "string -> unit")
         (typecheck_expr (parse_expr "print_string")));
 
     "unit type" >::
@@ -55,17 +55,17 @@ let type_expr_tests = "test suite for typechecker on expressions" >::: [
         (FuncTy (IntTy, IntTy))
         (typecheck_expr (parse_expr "fun x : int => x")));
 
-    "function expression, no type" >::
+    "function expression: no type" >::
     (fun _ -> assert_equal
         (FuncTy(IntTy, FuncTy(IntTy, IntTy)))
         (typecheck_expr (parse_expr  "fun x y => x + 2 * y"))); 
 
-    "function expression, with type" >::
+    "function expression: with type" >::
     (fun _ -> assert_equal
         (FuncTy(IntTy, FuncTy(IntTy, IntTy)))
         (typecheck_expr (parse_expr  "fun x y : int => x + 2 * y"))); 
 
-    "function expression, with incorrect type" >::
+    "function expression: with incorrect type" >::
     (fun _ -> try
         let _ = typecheck_expr (parse_expr  "fun x y : bool => x + 2 * y") in
         assert_failure "'fun x y : bool => x + 2 * y' passed the typechecker"
