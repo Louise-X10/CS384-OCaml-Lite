@@ -2,6 +2,17 @@
 
 OCaml Lite is a programming langauge that is similar to OCaml but with some restrictions that makes it easier to parse and implement. This project implements a parser, interpreter, and typechecker for Ocaml Lite using Ocaml. *For CS 384 Programming Language and Implementation*
 
+## How to run
+
+Clone this repository. The `*.ol` files are example OCaml-Lite files that can be run. Alternatively, you could also write your own OCaml-Lite file.
+
+```
+cd ocaml-lite
+dune exec ocaml-lite -- lc_parser.ol
+```
+
+## Implementation details
+
 **Syntax**
 
 The grammar for Ocaml Lite:
@@ -139,3 +150,9 @@ I.e. <typ_tuple> can only resolve to unique list of basic types
          | unit
          | $id
 ```
+
+### Notes on interpretor
+
+When adding name-value bindings to the interpretation environment (of structure (name*value) list), it is critical to append them to the beginning of the list. This results in desired behavior when we shadowing occurs. 
+
+Specifically, if we introduce a variable in a certain scope (e.g. in match branch) that has the same name as a variable in the other scope (i.e. the name already has a binding in the environment), then we should expect the outer variable to be shadowed by the inner variable. This can be achieved by adding the new binding to the front of the list, since variable substitution always finds the first binding with the target name. 
