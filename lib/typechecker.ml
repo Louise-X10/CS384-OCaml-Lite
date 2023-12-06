@@ -165,6 +165,13 @@ module TypeChecker = struct
     let ret_t = apply_subst res_slst t in 
     ret_t
 
+  (* Unify constraint list to give actual return type, and additional constraints that should be passed on *)
+  let unify_letbinding (clst: constr list) (t: typ): typ * constr list= 
+    let res_clst, res_slst = unify_multiple_constr clst [] in 
+    (* Assert that res_clst must be empty *)
+    let _ = if res_clst = [] then () else (raise (TypeError ("Unresolved constraints remain!"))) in 
+    let ret_t = apply_subst res_slst t in 
+    ret_t, res_slst
   (* Helper: Merge multiple context lists without duplicates *)
   let merge_context (lst_of_context: context list list)  = 
     (* let comp = (fun (x, _) (y, _) -> String.compare x y) in *)
@@ -208,10 +215,12 @@ module TypeChecker = struct
 
   (* Helper (for matchexp): Get context from constructor and pattern vars  *)
   let get_pvar_context (plst_opt: pattern_vars option) (constructor_type: typ): context list = 
-    (* Assign each pvar in plst to a type in pvars_tlst *)
-    let rec helper (plst: pattern_vars) (pvars_tlst: typ list): context list = 
+    (* Assign each pvar in plst to a type in constructor pvars_tlst *)
+    let rec helper (plst: string list) (pvars_tlst: typ list): context list = 
+      if List.length plst <> List.length pvars_tlst then raise (TypeError ("Number of pattern variables in match branch != defn of specifed type constructor"))
+      else 
       (match pvars_tlst with 
-      | [] -> if plst <> [] then raise (TypeError ("Not enough pattern variables for type constructor")) else []
+      | [] -> []
       | ti::[]->  [(List.hd plst, ti)]
       | t1 :: tail -> (List.hd plst, t1) :: helper (List.tl plst) tail
       ) in 
@@ -287,19 +296,19 @@ module TypeChecker = struct
     | CString _ -> return StringTy
     | CBool _ -> return BoolTy
     | Unit -> return UnitTy
-    (* For variable, look in context first, if not there / is free then gen new type var and add to context *)
+    (* For variable, look in context first, if not there / is free then throw error *)
     | Var s -> 
       (
         match s with 
-        | "int_of_string" -> return (FuncTy (IntTy, StringTy))
-        | "string_of_int" -> return (FuncTy (StringTy, IntTy))
+        | "int_of_string" -> return (FuncTy (StringTy, IntTy))
+        | "string_of_int" -> return (FuncTy (IntTy, StringTy))
         | "print_string" -> return (FuncTy (StringTy, UnitTy))
         | _ -> get >>= fun st ->
           let ty = List.assoc_opt s st.context in 
-          let s_type = 
-          (match ty with | Some t -> t | None -> fresh_var ()) in 
-          let new_context = 
-          (match ty with | Some _ -> st.context | None -> (s, s_type) :: st.context) in 
+          let s_type, new_context = 
+          (match ty with 
+          | Some t -> t, st.context
+          | None -> raise(TypeError ("Variable " ^ s ^ " is unbound in context"))) in 
           put {clst = st.clst; context = new_context } >>= fun _ ->
           return s_type
       )
@@ -464,19 +473,31 @@ module TypeChecker = struct
             then {clst = initial_st.clst; 
                   context = merge_context[[(x, fresh_var ())]; initial_st.context]} 
             else initial_st) in
-        (* If there is plst, then check like a function. Otherwise, check like an expression *)
+        (* Get return type of x, and current state after typechecking e1 *)
         let x_type, e1_st = 
-          if List.length plst > 0 then run_state (typecheck_function plst t e1) e1_initial_st else 
-            let e1_type, e1_temp_st = run_state (typecheck_expr e1) e1_initial_st in 
-            (* Add optional user constraint on return type *)
-            let e1_ret_st = {clst = merge_clst[(get_ret_constraint t e1_type); e1_temp_st.clst]; 
-            context = e1_temp_st.context} in 
-            e1_type, e1_ret_st in 
-        (* Unify then generalize *)
-        let x_type = unify e1_st.clst x_type in 
+        (* If there is plst, then check like a function. Otherwise, check like an expression *)
+          if List.length plst > 0 
+            then (run_state (typecheck_function plst t e1) e1_initial_st)
+            else (
+              let e1_type, e1_temp_st = run_state (typecheck_expr e1) e1_initial_st in 
+              (* Add optional user constraint on return type *)
+              let e1_ret_st = {clst = merge_clst[(get_ret_constraint t e1_type); e1_temp_st.clst]; 
+              context = e1_temp_st.context} in 
+              e1_type, e1_ret_st) 
+        in 
+        (* If recursive, add return type constraint before unifying:
+           x-type given initially (ret_t) = returned x-type *)
+        let e1_st = 
+          (if b = true
+            then let ret_t = List.assoc x e1_st.context in 
+                            {clst = (ret_t, x_type)::e1_st.clst; context = e1_st.context} 
+            else e1_st
+          ) in 
+        (* Unify then generalize. The substitutions from unifying should be added to return constraint list *)
+        let x_type, ret_clst = unify_letbinding e1_st.clst x_type in 
         let gen_x_type = generalize e1_st.context x_type in
-        (* Add generalized type to context. No clst after unify *)
-        put { clst = []; 
+        (* Add generalized type to context. *)
+        put { clst = ret_clst; 
               context = merge_context [[(x, gen_x_type)]; initial_st.context] } >>= fun _ -> 
         return gen_x_type
 

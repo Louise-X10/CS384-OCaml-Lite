@@ -7,17 +7,17 @@ let type_expr_tests = "test suite for typechecker on expressions" >::: [
 
     "built-in int_of_string" >::
     (fun _ -> assert_equal ~printer:show_typ
-        (FuncTy (IntTy, StringTy))
+        (parse_type "string -> int")
         (typecheck_expr (parse_expr "int_of_string")));
 
     "built-in string_of_int" >::
     (fun _ -> assert_equal ~printer:show_typ
-        (FuncTy (StringTy, IntTy))
+        (parse_type "int -> string")
         (typecheck_expr (parse_expr "string_of_int")));
 
     "built-in print_string" >::
     (fun _ -> assert_equal ~printer:show_typ
-        (FuncTy (StringTy, UnitTy))
+        (parse_type "string -> unit")
         (typecheck_expr (parse_expr "print_string")));
 
     "unit type" >::
@@ -55,17 +55,17 @@ let type_expr_tests = "test suite for typechecker on expressions" >::: [
         (FuncTy (IntTy, IntTy))
         (typecheck_expr (parse_expr "fun x : int => x")));
 
-    "function expression, no type" >::
+    "function expression: no type" >::
     (fun _ -> assert_equal
         (FuncTy(IntTy, FuncTy(IntTy, IntTy)))
         (typecheck_expr (parse_expr  "fun x y => x + 2 * y"))); 
 
-    "function expression, with type" >::
+    "function expression: with type" >::
     (fun _ -> assert_equal
         (FuncTy(IntTy, FuncTy(IntTy, IntTy)))
         (typecheck_expr (parse_expr  "fun x y : int => x + 2 * y"))); 
 
-    "function expression, with incorrect type" >::
+    "function expression: with incorrect type" >::
     (fun _ -> try
         let _ = typecheck_expr (parse_expr  "fun x y : bool => x + 2 * y") in
         assert_failure "'fun x y : bool => x + 2 * y' passed the typechecker"
@@ -88,7 +88,9 @@ let type_expr_tests = "test suite for typechecker on expressions" >::: [
         (IntTy)
         (let e = parse_expr  "match p with | Pair (x, y) => x + y" in
         let st = TypeChecker.typecheck_expr e in
-        TypeChecker.ConstrState.eval_state st  {clst = []; context = [("Pair", FuncTy(IntTy, FuncTy(IntTy, UserTy "pairing_type")))]}
+        TypeChecker.ConstrState.eval_state st  {clst = []; 
+                context = [("Pair", FuncTy(TupleTy([IntTy; IntTy]), UserTy "pairing_type"));
+                            ("p", UserTy "pairing_type")]}
         ));
 
     "let expr, no params, no type annotation" >::
@@ -135,7 +137,29 @@ let type_expr_tests = "test suite for typechecker on expressions" >::: [
     | TypeError _ -> assert_bool "" true
     | _ -> assert_failure "Unexpected error");
 
-    
+    "convoluted example" >::
+    (fun _ -> assert_equal ~printer:show_typ
+        (IntTy)
+        (typecheck_expr (parse_expr "let maybe f x y = if x then f y else y in maybe (fun x => x + 1) true 1")));
+
+    "ill-typed example" >::
+    (fun _ -> try
+        let _ = typecheck_expr (parse_expr "let f x = x + 1 in f ()") in
+        assert_failure "'let f x = x + 1 in f ()' passed the typechecker"
+    with
+    | TypeError _ -> assert_bool "" true
+    | _ -> assert_failure "Unexpected error");
+
+    "convoluted example2" >::
+    (fun _ -> assert_equal ~printer:show_typ
+        (TupleTy [UnitTy; IntTy])
+        (typecheck_expr (parse_expr "let twice f x = f (f x) in (twice (fun x => ()) (), twice (fun x => x + 1) 1)")));
+
+    "multiple generalization" >::
+    (fun _ -> assert_equal ~printer:show_typ
+        (parse_type "(int * bool) * (string * bool)")
+        (typecheck_expr (parse_expr "let twice x y = (x, y) in
+        (twice 1 true, twice \"hello\" false)")));
 ]
 
 let type_binding_tests = "test suite for typechecker on bindings" >::: [
@@ -177,7 +201,7 @@ let type_binding_tests = "test suite for typechecker on bindings" >::: [
         let p = Pair (1, 2);;
         let res = match p with | Pair (x, y) => x + y | Single x => x | Nothing => 0;;")));
 
-    "match expression, multiple pvar" >::
+    "match expression: multiple pvar" >::
     (fun _ -> assert_equal
         ([UserTy "pairing"; UserTy "pairing"; IntTy])
         (typecheck (parse 
@@ -185,7 +209,7 @@ let type_binding_tests = "test suite for typechecker on bindings" >::: [
         let p = Pair (1, 2);;
         let res = match p with | Pair (x, y) => x + y ;;")));
 
-    "match expression, single pvar" >::
+    "match expression: single pvar" >::
     (fun _ -> assert_equal
         ([UserTy "test"; UserTy "test"; IntTy])
         (typecheck (parse 
@@ -193,7 +217,7 @@ let type_binding_tests = "test suite for typechecker on bindings" >::: [
         let a = A 1;;
         let res = match a with | A i => i | B j => 0 ;;")));
 
-    "match expression, no pvar" >::
+    "match expression: no pvar" >::
     (fun _ -> assert_equal
         ([UserTy "test"; UserTy "test"; BoolTy])
         (typecheck (parse 
@@ -215,7 +239,50 @@ let type_binding_tests = "test suite for typechecker on bindings" >::: [
         (typecheck (parse 
         "let f = fun x => fun y => x + y;;
         let g = f 3;;")));
-        
+
+    "ill-typed: mismatched pvar in match branch" >::
+    (fun _ -> try
+        let _ = typecheck (parse 
+        "type t = | A of int;;
+        let f x = match x with | A (a, b) => 0;;") in
+        assert_failure "mismatched pvar in match branch passed the typechecker"
+    with
+    | TypeError "Number of pattern variables in match branch != defn of specifed type constructor" -> assert_bool "" true
+    | _ -> assert_failure "Unexpected error");
+
+    "ill-typed: let binding" >::
+    (fun _ -> try
+        let _ = typecheck (parse "let _ = fun x => let y = x + 1 in x ();;") in
+        assert_failure "ill-typed recursive binding passed the typechecker"
+    with
+    | TypeError "Unification failed" -> assert_bool "" true
+    | _ -> assert_failure "Unexpected error");
+
+    "ill-typed: undefined constructor" >::
+    (fun _ -> try
+        let _ = typecheck (parse "let a = Pair (1, 2);;") in
+        assert_failure "ill-typed undefined constructor passed the typechecker"
+    with
+    | TypeError "Variable Pair is unbound in context" -> assert_bool "" true
+    | _ -> assert_failure "Unexpected error");
+
+    "ill-typed: recusive function with no rec" >::
+    (fun _ -> try
+        let _ = typecheck (parse "let f x = if f (x - 1) < 0 then true else false;;") in
+        assert_failure "ill-typed recursive function with no rec passed the typechecker"
+    with
+    | TypeError "Variable f is unbound in context" -> assert_bool "" true
+    | _ -> assert_failure "Unexpected error");
+
+    "ill-typed: recursive binding" >::
+    (fun _ -> try
+        let _ = typecheck (parse "let rec f x = if f (x - 1) < 0 then true else false;;") in
+        assert_failure "ill-typed recursive binding passed the typechecker"
+    with
+    | TypeError "Unification failed" -> assert_bool "" true
+    | _ -> assert_failure "Unexpected error");
+
+    
 ]
 
 

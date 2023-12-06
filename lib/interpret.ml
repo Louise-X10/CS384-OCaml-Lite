@@ -14,6 +14,7 @@ and value =
   | VConstructor of string * (value -> value)
   (* user-defined constructed value: constructor name * arguments *)
   | VUser of string * value list
+  | VBuiltin of string
 
 module Interpretor = struct 
   type interp_state = {env: env}
@@ -45,7 +46,7 @@ let rec valueof_expr (e:expr) :value =
   let ret_v = eval_state st empty_st in 
   ret_v *)
 
-and envof_program (blst:program) :interp_state = 
+and retst_program (blst:program) :interp_state = 
   let st_lst = List.map interp_binding blst in 
   let _, ret_env = chain_states st_lst empty_st in 
   ret_env
@@ -66,8 +67,11 @@ and interp_expr: expr -> value InterpState.m = function
   (* For variable, look in context first, if not there then invalid *)
   | Var s -> 
     (match s with 
-    | _ -> get >>= fun st ->
-      let v_opt = List.assoc_opt s st.env in 
+    | "int_of_string" -> return (VBuiltin ("int_of_string"))
+    | "string_of_int" -> return (VBuiltin ("string_of_int"))
+    | "print_string" -> return (VBuiltin ("print_string"))
+    | _ -> get >>= fun initial_st ->
+      let v_opt = List.assoc_opt s initial_st.env in 
       let ret_v = 
       (match v_opt with | Some v -> v | None -> raise (InterpError ("Can't find variable " ^ s ^ " in environment"))) in 
       return ret_v
@@ -165,10 +169,12 @@ and interp_matchexp (e: expr) (brlst: matchbranch list): value InterpState.m =
       if s = c then true else false in 
     let br = List.find find_matchbr brlst in 
     (* Assign arg_vlst to pvars, add to interp_state, evaluate br_e *)
+    (* ! Add pvar bindings to front of env to shadow any previous assignments *)
     match br with 
     | MatchBr(_, Some pvars, br_e) -> 
-      let branch_st = {env = initial_st.env @ (List.combine pvars arg_vlst)} in 
-      return (value_fromst br_e branch_st)
+      let branch_st = {env = (List.combine pvars arg_vlst) @ initial_st.env} in 
+      let ret_v = value_fromst br_e branch_st in 
+      return ret_v
     | MatchBr(_, None, br_e) -> 
       return (value_fromst br_e initial_st)
 
@@ -185,6 +191,14 @@ and interp_app (e1: expr) (e2: expr): value InterpState.m =
   (match v1 with 
     (* If v1 is constructor, apply v2 (can be tuple) as args to constructor *)
     | VConstructor(_, constructor_func) -> constructor_func v2
+    (* If v1 is buildin function, directly apply v2 *)
+    | VBuiltin("int_of_string") -> 
+      let (VString s) = v2 in VInt (int_of_string s)
+    | VBuiltin("string_of_int") -> 
+      let (VInt i) = v2 in VString (string_of_int i)
+    | VBuiltin("print_string") -> 
+      let (VString s) = v2 in 
+      let _ = print_endline s in VUnit
     (* If v1 is function, then evaluate closure body with binding arg=v2 *)
     | VClosure(arg, closure_env, closure_exp, None) -> 
       (match closure_exp with
@@ -199,8 +213,8 @@ and interp_app (e1: expr) (e2: expr): value InterpState.m =
       )
     (* If v1 is recursive function, then add closure_name=closure, arg-v2 to state env, then evaluate closure exp *)
     | VClosure(arg, closure_env, closure_exp, Some closure_name) -> 
-      let rec_closure_env = {env=(closure_name, VClosure(arg, closure_env, closure_exp, None))::(arg, v2)::closure_env @ initial_st.env} in 
-      value_fromst closure_exp rec_closure_env
+      let rec_closure_st = {env=(arg, v2)::(closure_name, VClosure(arg, closure_env, closure_exp, Some closure_name))::closure_env @ initial_st.env} in 
+      value_fromst closure_exp rec_closure_st
     | _ -> raise (InterpError "Expression is not function or constructor, cannot be applied")
   ) in 
   return ret_v
@@ -216,7 +230,6 @@ and interp_function (plst: param list) (t: typ option) (e: expr) (name_opt: stri
     | [arg] -> return (VClosure (arg.name, initial_st.env, e, name_opt))
     | arg :: args -> return (VClosure (arg.name, initial_st.env, Function(args, t, e), name_opt))
     | [] -> raise (InterpError "Function has no parameters")
-
 
 (* Get env with let binding, then evaluate e2 in updated env
    Note that returned state is not modified
@@ -272,4 +285,7 @@ let interp_expr (e: expr) : value =
   Interpretor.valueof_expr e
 
 let interp_program (e:program) : Interpretor.interp_state = 
-  Interpretor.envof_program e
+  Interpretor.retst_program e
+
+let interpret (e:program) : unit = 
+  let _ = Interpretor.retst_program e in ()
